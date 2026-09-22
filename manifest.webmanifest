@@ -1,0 +1,15 @@
+{
+  "name": "MT Reader",
+  "short_name": "MT Reader",
+  "description": "Mishneh Torah: Hebrew, translation and commentary side by side.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#faf8f4",
+  "theme_color": "#faf8f4",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "categories": ["books", "education"]
+}

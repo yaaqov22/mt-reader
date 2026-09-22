@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mt-reader",
+      "runtimeExecutable": "C:/php/php.exe",
+      "runtimeArgs": ["-S", "127.0.0.1:8150", "-t", ".."],
+      "port": 8150
+    }
+  ]
+}

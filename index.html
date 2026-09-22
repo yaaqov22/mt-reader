@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#faf8f4">
+<meta name="description" content="Mishneh Torah: Hebrew, translation and commentary side by side.">
+<title>MT Reader</title>
+
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="#/books">MT Reader</a>
+  <!-- Which branch is being read, always visible: reading the wrong branch is
+       the one mistake that looks exactly like reading the right one. -->
+  <a id="source-chip" class="chip source" href="#/settings"></a>
+  <a id="search-btn" class="iconbtn" href="#/search" aria-label="Search" title="Search (/)"></a>
+  <a id="home-btn" class="iconbtn" href="#/books" aria-label="Books" title="Books"></a>
+  <button type="button" id="reload-btn" class="iconbtn" aria-label="Reload texts" title="Reload texts"></button>
+  <button type="button" id="settings-btn" class="iconbtn" aria-label="Settings" title="Settings"></button>
+</header>
+
+<main id="main">
+  <!-- Every screen exists from the start; the router only toggles .on -->
+  <section id="screen-books" class="screen"></section>
+  <section id="screen-read" class="screen"></section>
+  <section id="screen-search" class="screen"></section>
+  <section id="screen-settings" class="screen"></section>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<!-- Plain script tags in dependency order, no modules and no build step.
+     The list must match SHELL in sw.js. -->
+<script src="js/utils.js"></script>
+<script src="js/format.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/markdown.js"></script>
+<script src="js/store.js"></script>
+<script src="js/github.js"></script>
+<script src="js/source.js"></script>
+<script src="js/library.js"></script>
+<script src="js/books.js"></script>
+<script src="js/reader.js"></script>
+<script src="js/search.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
