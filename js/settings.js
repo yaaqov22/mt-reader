@@ -45,7 +45,7 @@
 
     const ghFields = UI.el('div.fields', [
       UI.el('div.row2', [UI.field('Owner', owner), UI.field('Repository', repo)]),
-      UI.field('Branch', branch, 'Until the format migration is merged, read the format-migration branch.'),
+      UI.field('Branch', branch, 'Usually master. To read a submitted pull request before it is merged, enter its branch.'),
       UI.field('Personal access token', token,
         'A fine-grained token for this repository. Reading needs Contents: read; submitting changes needs ' +
         'Contents and Pull requests set to "Read and write". It is stored only on this device.'),

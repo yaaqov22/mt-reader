@@ -20,7 +20,8 @@
 
   function noIndex() {
     const e = new Error('This branch has no index.json, so it is not in the reader\'s format yet. ' +
-      'Until the format migration is merged into master, choose the format-migration branch in Settings.');
+      'It may predate the format migration, or not be a branch of the texts at all; choose another branch ' +
+      '(master has it) in Settings.');
     e.code = 'noindex';
     return e;
   }
