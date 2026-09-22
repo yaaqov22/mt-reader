@@ -21,7 +21,9 @@ and no build step, installable on desktop now and wrapped for Android
   and notes, adding commentary and review notes (from a selected phrase or a
   button), drafts in IndexedDB, change markers with diffs and undo, and a
   Changes screen.
-- [ ] M3: submitting to GitHub (branch, commit, pull request)
+- [x] **M3: submitting to GitHub.** One commit per submission on a branch
+  per person per day, a pull request, a per-law three-way merge with the
+  branch, and a side-by-side resolver for real conflicts.
 - [ ] M4: review workflow (branches, diffs, notes column, search)
 - [ ] M5: PWA polish
 - [ ] M6: Android shell
@@ -36,9 +38,10 @@ No build step. Serve the folder over HTTP and open `index.html`.
   "local folder" source (`../mishneh-torah-migration/` by default), with no
   token and no caching, so edits to the files show on reload.
 - **Against GitHub:** in Settings choose GitHub, set the branch
-  (`format-migration` until that PR is merged), and paste a fine-grained
-  personal access token with **Contents: read** on the repository. The repo is
-  private, so reading needs one too. The token stays on the device.
+  and paste a fine-grained personal access token for the repository. Reading
+  needs **Contents: read**. Submitting needs **Contents** and **Pull requests**
+  both set to **Read and write**. The repo is private, so reading needs a token
+  too. The token stays on the device.
 - **Offline:** texts are cached in IndexedDB by git blob SHA as you read.
   Settings → *Download all texts* fetches the rest. The service worker caches
   the app itself. On localhost it only runs if you add `?sw=1`, and `?sw=0`
@@ -51,7 +54,7 @@ No build step. Serve the folder over HTTP and open `index.html`.
 | `#/read/1-1/3/5` | same, scrolled to law 5 |
 | `#/search/<query>` | search results; `/he.en.co~3~w` after it picks layers, book, whole words |
 | `#/read/1-1/3/5/<query>` | law 5 with the query highlighted (where results lead) |
-| `#/changes` | every draft on this device for the branch being read |
+| `#/changes` | every draft on this device for the branch being read, and submitting them |
 | `#/settings` | source, token, your name, offline, theme |
 
 ← and → move between chapters; / opens search.
@@ -72,6 +75,24 @@ an edit of (the base for M3's merge). Changed laws and notes are marked in
 the reader with *diff* and *undo*; the Changes screen lists them all. A draft
 whose file has moved on upstream is flagged but kept as it is.
 
+**Submitting** (the Changes screen, GitHub source only). Tick the files and
+write a message; its first line is the pull request's title. The files go as
+one commit to the branch `<login>/<yyyymmdd>`: one branch per person per day,
+made from the branch being read the first time. A pull request into the
+branch being read is opened, or the one already open for that branch is
+added to. The Git Data API does it in four calls: a tree with the texts
+inline, a commit, then creating or moving the ref (never forced), then the
+pull request. If the branch moved meanwhile, it starts again from the new
+head.
+
+Each draft is merged with the file at the branch head **law by law**
+(`js/merge.js`). Changes to different laws or notes merge silently. Only a
+law or note both sides changed differently is a conflict, and those are shown
+side by side with a box for the result, checked the same way as an edit. A new
+note whose number someone else took meanwhile is renumbered, not flagged.
+Submitted drafts are removed, and the pull request is linked at the top of the
+screen.
+
 **Search** loads every section once per session (from the offline cache when
 it can; on GitHub the first search downloads the texts, after which they are
 kept) and scans it in memory: about 1.3 s to prepare, ~50 ms a query. All words
@@ -89,9 +110,11 @@ Plain scripts on a global `MT` namespace, loaded in dependency order by
 | `utils.js` | namespace, event bus, device settings (localStorage) |
 | `format.js` | parser/writer for the text files; shared with the Node tools |
 | `edit.js` | edits to parsed documents (laws, notes), change lists, word diff; shared with the Node tools |
+| `merge.js` | per-law three-way merge of a draft with the file as it now is; shared with the Node tools |
+| `submit.js` | submitting: branch, merge, commit, pull request (no DOM; tested against a fake GitHub) |
 | `icons.js`, `ui.js`, `markdown.js` | inline SVG icons, DOM helper and hash router, inline Markdown to DOM (never `innerHTML`) |
 | `store.js` | IndexedDB (`blobs` by SHA, `kv`, `drafts`) |
-| `github.js` | GitHub REST client |
+| `github.js` | GitHub REST client: reading, and the Git Data and pull request calls |
 | `source.js` | GitHub or local folder, and the offline cache |
 | `drafts.js` | local edits, one whole file per draft, in IndexedDB |
 | `library.js` | index and parsed sections, merged law by law, drafts applied; `lib.edit` |
@@ -132,6 +155,7 @@ NODE="/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Microsoft/
 "$NODE" tools/migrate.mjs            # → out/migrated/ + out/migrated/REPORT.md
 "$NODE" tools/test-format.mjs        # unit tests + corpus checks on out/migrated
 "$NODE" tools/test-edit.mjs          # editing tests + a re-save check over the corpus (~30 s)
+"$NODE" tools/test-submit.mjs        # merge tests + the submit flow against a fake GitHub
 ```
 
 The pointed edition is read from Mechon Mamre's zip (`--niqqud in001.zip` by

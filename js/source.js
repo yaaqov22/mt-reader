@@ -53,17 +53,20 @@
     return treeP;
   }
 
+  function blob(sha) {
+    return MT.store.get('blobs', sha).then(function (hit) {
+      if (typeof hit === 'string') return hit;
+      return MT.github.blob(sha).then(function (s) {
+        MT.store.put('blobs', sha, s);
+        return s;
+      });
+    });
+  }
+
   function githubText(path) {
     return tree().then(function (t) {
       const sha = t.tree[path];
-      if (!sha) return null;
-      return MT.store.get('blobs', sha).then(function (hit) {
-        if (typeof hit === 'string') return hit;
-        return MT.github.blob(sha).then(function (s) {
-          MT.store.put('blobs', sha, s);
-          return s;
-        });
-      });
+      return sha ? blob(sha) : null;
     });
   }
 
@@ -119,6 +122,10 @@
       }
       return texts.get(path);
     },
+
+    /* A file's text by blob SHA, from the cache when it can — for reading
+       files of commits other than the branch head (submit.js). */
+    blob: blob,
 
     json: function (path) {
       return MT.source.text(path).then(function (s) { return s === null ? null : JSON.parse(s); });

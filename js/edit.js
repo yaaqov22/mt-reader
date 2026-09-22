@@ -288,7 +288,7 @@
 
   MT.edit = {
     paragraphs, lawBody, noteBody, findLaw, findNote,
-    setLaw, addNote, setNote, nextNoteLabel,
+    setLaw, addNote, setNote, nextNoteLabel, notesChapter, placeNote,
     changes, revert, diffWords,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);
