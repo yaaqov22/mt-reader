@@ -53,7 +53,9 @@
     localBase: '../mishneh-torah-migration/',
     theme: 'system',
     cols: { he: true, en: true, co: true },
-    niqqud: false
+    niqqud: false,
+    editing: false,
+    name: ''        // signs review notes; filled from the token's login when checked
   };
 
   let device = Object.assign({}, DEFAULTS, load('device.v1', {}));

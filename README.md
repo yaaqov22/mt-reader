@@ -17,7 +17,10 @@ and no build step, installable on desktop now and wrapped for Android
   settings, offline cache, service worker.
 - [x] **Search** (brought forward from M4). Hebrew (either edition, vowel
   points ignored), English, commentary and notes, with layer and book filters.
-- [ ] M2: editing and local drafts
+- [x] **M2: editing and local drafts.** Edit mode, in-place editing of laws
+  and notes, adding commentary and review notes (from a selected phrase or a
+  button), drafts in IndexedDB, change markers with diffs and undo, and a
+  Changes screen.
 - [ ] M3: submitting to GitHub (branch, commit, pull request)
 - [ ] M4: review workflow (branches, diffs, notes column, search)
 - [ ] M5: PWA polish
@@ -48,9 +51,26 @@ No build step. Serve the folder over HTTP and open `index.html`.
 | `#/read/1-1/3/5` | same, scrolled to law 5 |
 | `#/search/<query>` | search results; `/he.en.co~3~w` after it picks layers, book, whole words |
 | `#/read/1-1/3/5/<query>` | law 5 with the query highlighted (where results lead) |
-| `#/settings` | source, token, offline, theme |
+| `#/changes` | every draft on this device for the branch being read |
+| `#/settings` | source, token, your name, offline, theme |
 
 ← and → move between chapters; / opens search.
+
+**Editing.** The *Edit* chip in the chapter bar turns on edit mode: click a
+law's Hebrew or English, or a note, to edit it in place, and use *+
+commentary* / *+ review note* under any law. Selecting a phrase in a law (in
+either mode) offers *Comment* and *Review note* with the phrase quoted and the
+next free note number filled in; review notes are signed `**name** date -`
+with the name from Settings. With niqqud on, the pointed Hebrew is what gets
+edited. Text saves as you type; Ctrl+Enter or Esc closes the editor.
+
+Every edit is checked by round trip (`js/edit.js`): the file is written,
+parsed back, and must come back the same, so a paragraph that would turn
+into a new law, heading or note is refused with the reason instead of saved.
+Drafts are whole files, kept per branch in IndexedDB with the text they were
+an edit of (the base for M3's merge). Changed laws and notes are marked in
+the reader with *diff* and *undo*; the Changes screen lists them all. A draft
+whose file has moved on upstream is flagged but kept as it is.
 
 **Search** loads every section once per session (from the offline cache when
 it can; on GitHub the first search downloads the texts, after which they are
@@ -68,12 +88,15 @@ Plain scripts on a global `MT` namespace, loaded in dependency order by
 |---|---|
 | `utils.js` | namespace, event bus, device settings (localStorage) |
 | `format.js` | parser/writer for the text files; shared with the Node tools |
+| `edit.js` | edits to parsed documents (laws, notes), change lists, word diff; shared with the Node tools |
 | `icons.js`, `ui.js`, `markdown.js` | inline SVG icons, DOM helper and hash router, inline Markdown to DOM (never `innerHTML`) |
-| `store.js` | IndexedDB cache (`blobs` by SHA, `kv`) |
+| `store.js` | IndexedDB (`blobs` by SHA, `kv`, `drafts`) |
 | `github.js` | GitHub REST client |
 | `source.js` | GitHub or local folder, and the offline cache |
-| `library.js` | index and parsed sections, merged law by law |
-| `books.js`, `reader.js`, `search.js`, `settings.js` | the screens (search.js also holds the search engine) |
+| `drafts.js` | local edits, one whole file per draft, in IndexedDB |
+| `library.js` | index and parsed sections, merged law by law, drafts applied; `lib.edit` |
+| `editor.js` | the in-place textarea editor, autosaving |
+| `books.js`, `reader.js`, `search.js`, `changes.js`, `settings.js` | the screens (search.js also holds the search engine) |
 | `main.js` | boot, top bar, service worker |
 
 ## The file format
@@ -108,6 +131,7 @@ one bundled with Visual Studio:
 NODE="/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Microsoft/VisualStudio/NodeJs/win-x64/node.exe"
 "$NODE" tools/migrate.mjs            # → out/migrated/ + out/migrated/REPORT.md
 "$NODE" tools/test-format.mjs        # unit tests + corpus checks on out/migrated
+"$NODE" tools/test-edit.mjs          # editing tests + a re-save check over the corpus (~30 s)
 ```
 
 The pointed edition is read from Mechon Mamre's zip (`--niqqud in001.zip` by

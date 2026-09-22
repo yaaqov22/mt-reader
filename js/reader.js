@@ -16,22 +16,33 @@
    Which columns show is a device setting, toggled in the chapter bar, and so
    is niqqud: the ניקוד chip swaps the Hebrew column between Mechon Mamre's
    plain and pointed editions (Hebrew/*-he.md and *-hen.md). Under 900px the
-   cells of a row stack instead (see the CSS), in the same order. */
+   cells of a row stack instead (see the CSS), in the same order.
+
+   EDITING. The Edit chip turns on edit mode, in which clicking a law's
+   Hebrew or English, or a note, opens it in place (editor.js), and each
+   commentary cell offers to add a note. Selecting a phrase in a law offers
+   the same in any mode, with the phrase quoted. Whichever Hebrew edition is
+   showing is the one edited. Edits are drafts on this device (drafts.js);
+   what they changed is marked where it stands, with its diff and an undo. */
 
 (function (MT) {
   'use strict';
 
   const UI = MT.ui;
   const F = MT.format;
+  const E = MT.edit;
   const lib = MT.lib;
   let seq = 0;
   let nav = null;   // { prev, next } hrefs for the keyboard
+  let live = null;  // the rendered chapter's context, for the selection toolbar
 
   const COLS = [
     { key: 'he', label: 'עברית', title: 'Hebrew' },
     { key: 'en', label: 'English', title: 'English' },
     { key: 'co', label: 'Commentary', title: 'Commentary' }
   ];
+
+  const LAYER_NAME = { he: 'Hebrew', hen: 'pointed Hebrew', en: 'English', co: 'commentary', notes: 'review notes' };
 
   /* --------------------------------------------------------------- cells */
 
@@ -45,38 +56,260 @@
     return UI.el('div.cell.' + lang + (extraClass ? '.' + extraClass : ''), attrs, children);
   }
 
-  function lawCell(lang, ch, law, href) {
-    if (!law) return cell(lang, UI.el('p.missing', { text: lang === 'he' ? '' : 'Not yet translated.' }), 'empty');
+  /* A body from the editor, as the law or note fields it will become. */
+  function split(body) {
+    const p = E.paragraphs(body);
+    return { text: p[0] || '', rest: p.slice(1) };
+  }
+
+  function lawContent(lang, ch, law, href) {
     const label = UI.el('a.label', { href: href, text: F.labelText(ch, law, lang).replace(/\*/g, '') });
     const first = MT.md.para(law.text, lang === 'he' ? 'p.he' : 'p');
     first.insertBefore(label, first.firstChild);
     first.insertBefore(document.createTextNode(' '), label.nextSibling);
-    return cell(lang, [first].concat(paras(law.extra, lang)));
+    return [first].concat(paras(law.extra, lang));
+  }
+
+  function findChange(ctx, layer, kind, id) {
+    return (ctx.changes[layer] || []).find(function (c) {
+      return c.kind === kind && (kind === 'law' ? c.key === id : c.label === id);
+    }) || null;
+  }
+
+  function lawCell(ctx, lang, ch, law, href) {
+    if (!law) return cell(lang, UI.el('p.missing', { text: lang === 'he' ? '' : 'Not yet translated.' }), 'empty');
+    const layer = lang === 'he' ? ctx.heLayer : 'en';
+    const key = ch.key + ':' + law.n;
+    const change = findChange(ctx, layer, 'law', key);
+    const c = cell(lang, lawContent(lang, ch, law, href), change ? 'changed' : null);
+    if (change) c.appendChild(changeBar(ctx, layer, change, c));
+    if (ctx.editing) {
+      c.classList.add('editable');
+      c._edit = function () {
+        lib.section(ctx.id).then(function (sec) {
+          const hit = E.findLaw(sec[layer], key);
+          if (!hit) return;
+          openEditor(c, {
+            lang: lang, body: E.lawBody(hit.law), label: 'Edit the ' + LAYER_NAME[layer] + ' of ' + key,
+            save: function (b) { return lib.edit(ctx.id, layer, function (doc) { return E.setLaw(doc, layer, key, b); }); },
+            render: function (b) {
+              const s = split(b);
+              return lawContent(lang, ch, { n: law.n, text: s.text, extra: s.rest }, href);
+            }
+          });
+        });
+      };
+    }
+    return c;
   }
 
   function noteRange(n) {
     return n.c + ':' + n.h + (n.h2 != null ? '–' + n.h2 : '');
   }
 
-  function noteEl(n, kind) {
-    return UI.el('div.note.' + kind, [
+  function noteContent(n) {
+    return [
       MT.md.para(n.text, 'p'),
       paras(n.more),
       n.h2 != null ? UI.el('p.note-range', { text: 'on ' + noteRange(n) }) : null
-    ]);
+    ];
   }
 
-  function notesCell(sec, key) {
-    const co = lib.notesFor(sec.co, key).map(function (n) { return noteEl(n, 'co'); });
-    const rv = lib.notesFor(sec.notes, key).map(function (n) { return noteEl(n, 'review'); });
-    return cell('co', co.concat(rv));
+  const kindOf = function (layer) { return layer === 'notes' ? 'review' : 'co'; };
+
+  function noteEl(ctx, n, layer) {
+    const change = findChange(ctx, layer, 'note', n.label);
+    const el = UI.el('div.note.' + kindOf(layer) + (change ? '.changed' : ''), noteContent(n));
+    if (change) el.appendChild(changeBar(ctx, layer, change, el));
+    if (ctx.editing) {
+      el.classList.add('editable');
+      el._edit = function () {
+        lib.section(ctx.id).then(function (sec) {
+          const hit = sec[layer] && E.findNote(sec[layer], n.label);
+          if (!hit) return;
+          openEditor(el, {
+            body: E.noteBody(hit.note), label: 'Edit ' + LAYER_NAME[layer] + ' note ' + n.label,
+            hint: '[^' + n.label + '] · empty it to delete',
+            save: function (b) { return lib.edit(ctx.id, layer, function (doc) { return E.setNote(doc, layer, n.label, b); }); },
+            render: function (b) {
+              const s = split(b);
+              return noteContent(Object.assign({}, n, { text: s.text, more: s.rest }));
+            }
+          });
+        });
+      };
+    }
+    return el;
   }
 
-  function row(cls, cells, id) {
-    const r = UI.el('div.row' + (cls ? '.' + cls : ''), cells);
-    if (id) r.id = id;
-    return r;
+  /* A note deleted in the draft, still shown (struck out) so it can be put back. */
+  function deletedNote(ctx, change, layer) {
+    const el = UI.el('div.note.deleted.' + kindOf(layer), [MT.md.para(change.before.split('\n\n')[0], 'p')]);
+    el.appendChild(changeBar(ctx, layer, change, el));
+    return el;
   }
+
+  function notesCell(ctx, key, c, h) {
+    const sec = ctx.sec;
+    const out = [];
+    ['co', 'notes'].forEach(function (layer) {
+      lib.notesFor(sec[layer], key).forEach(function (n) { out.push(noteEl(ctx, n, layer)); });
+      (ctx.changes[layer] || []).forEach(function (ch) {
+        if (ch.kind === 'note' && ch.after === null && ch.key === key) out.push(deletedNote(ctx, ch, layer));
+      });
+    });
+    const co = cell('co', out);
+    if (ctx.editing && c != null) {
+      const add = function (layer, text) {
+        return UI.el('button.linkbtn', { type: 'button', text: text, onclick: function () { newNote(ctx, co, layer, c, h, ''); } });
+      };
+      co.appendChild(UI.el('div.addnote', [add('co', '+ commentary'), add('notes', '+ review note')]));
+    }
+    return co;
+  }
+
+  /* ------------------------------------------------------------- editing */
+
+  function openEditor(host, opts) {
+    host.classList.add('editing');
+    return MT.editor.open(host, Object.assign({ onClose: function () { UI.refresh(); } }, opts));
+  }
+
+  function today() {
+    const d = new Date();
+    const two = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate());
+  }
+
+  /* What a new note starts with: the quoted phrase, and for a review note
+     who wrote it and when. */
+  function notePrefix(layer, phrase) {
+    const q = phrase ? '*' + phrase + '* - ' : '';
+    if (layer !== 'notes') return q;
+    return '**' + (MT.device.get('name') || 'reviewer') + '** ' + today() + ' - ' + q;
+  }
+
+  /* A new note on law c:h, typed into the commentary cell. It is added to the
+     draft at the first save that has more than the prefix in it; emptied
+     again (or back to the bare prefix), it is removed. */
+  function newNote(ctx, coCell, layer, c, h, phrase) {
+    const prefix = notePrefix(layer, phrase);
+    const wrap = UI.el('div.note.new.' + kindOf(layer));
+    coCell.insertBefore(wrap, coCell.querySelector('.addnote'));
+    let label = null;
+    openEditor(wrap, {
+      body: prefix, label: 'New ' + LAYER_NAME[layer] + ' note on ' + c + ':' + h,
+      hint: 'New ' + (layer === 'notes' ? 'review note' : 'commentary') + ' on ' + c + ':' + h,
+      save: function (b) {
+        const empty = !E.paragraphs(b).length || b.trim() === prefix.trim();
+        if (!label) {
+          if (empty) return Promise.resolve();
+          return lib.edit(ctx.id, layer, function (doc, sec) {
+            const r = E.addNote(doc, layer, c, h, b, sec.en);
+            label = r.label;
+            return r;
+          });
+        }
+        return lib.edit(ctx.id, layer, function (doc) { return E.setNote(doc, layer, label, empty ? '' : b); })
+          .then(function (r) { if (empty) label = null; return r; });
+      },
+      render: function (b) {
+        const s = split(b);
+        return label ? noteContent({ text: s.text, more: s.rest }) : null;
+      }
+    });
+  }
+
+  /* "Edited · diff · undo" under a changed law or note. */
+  function changeBar(ctx, layer, change, host) {
+    const what = change.before === null ? 'Added' : change.after === null ? 'Deleted' : 'Edited';
+    const bits = [UI.el('span.chg-what', { text: what + (ctx.raw.stale[layer] ? ' (the file has changed on the branch since)' : '') })];
+    if (change.before !== null && change.after !== null) {
+      bits.push(UI.el('button.linkbtn', {
+        type: 'button', text: 'diff', title: 'Show what changed',
+        onclick: function () {
+          const open = host.classList.toggle('showdiff');
+          const old = host.querySelector('.diff');
+          if (old) old.remove();
+          if (open) host.appendChild(MT.editor.diff(change.before, change.after));
+        }
+      }));
+    }
+    bits.push(UI.el('button.linkbtn', {
+      type: 'button', text: 'undo', title: 'Put back the ' + LAYER_NAME[layer] + ' as it was',
+      onclick: function () {
+        MT.editor.close().then(function () { return lib.revert(ctx.id, layer, change); })
+          .then(function () { UI.refresh(); }, function (e) { UI.toast(e.message); });
+      }
+    }));
+    return UI.el('div.chg', bits);
+  }
+
+  /* ----------------------------------------------------- selection toolbar */
+
+  /* Select a phrase in a law's Hebrew or English and this floats above it:
+     add a commentary or review note quoting it. */
+  let picked = null;   // { row, phrase }
+  const seltools = UI.el('div.seltools', { role: 'toolbar', 'aria-label': 'Note on the selection' }, [
+    selBtn('co', 'Comment'), selBtn('notes', 'Review note')
+  ]);
+  seltools.hidden = true;
+  document.body.appendChild(seltools);
+
+  function selBtn(layer, text) {
+    return UI.el('button', {
+      type: 'button', text: text,
+      onmousedown: function (e) { e.preventDefault(); },   // keep the selection
+      onclick: function () {
+        if (!picked || !live) return;
+        const row = picked.row, phrase = picked.phrase;
+        hideSel();
+        const s = window.getSelection();
+        if (s) s.removeAllRanges();
+        if (!MT.device.get('cols').co) {
+          MT.device.set({ cols: Object.assign({}, MT.device.get('cols'), { co: true }) });
+          applyCols(live.grid);
+          const chip = document.querySelector('.coltoggles [title="Show Commentary"]');
+          if (chip) chip.setAttribute('aria-pressed', 'true');
+        }
+        newNote(live, row.querySelector('.cell.co'), layer, +row.getAttribute('data-c'), +row.getAttribute('data-n'), phrase);
+      }
+    });
+  }
+
+  function hideSel() { seltools.hidden = true; picked = null; }
+
+  /* The selection's text as read, without the law label or sub-number tags. */
+  function phraseOf(range) {
+    const box = document.createElement('div');
+    box.appendChild(range.cloneContents());
+    box.querySelectorAll('.label, .mk, .chg, .diff').forEach(function (n) { n.remove(); });
+    let t = box.textContent.replace(/[*\s]+/g, ' ').trim();
+    if (t.length > 120) t = t.slice(0, 117).replace(/\s+\S*$/, '') + '…';
+    return t;
+  }
+
+  function checkSel() {
+    const s = window.getSelection();
+    if (!live || UI.current().id !== 'read' || !s || s.isCollapsed || !s.rangeCount) return hideSel();
+    const range = s.getRangeAt(0);
+    let node = range.commonAncestorContainer;
+    if (node.nodeType !== 1) node = node.parentNode;
+    const c = node && node.closest('.cell.he, .cell.en');
+    const row = c && c.closest('.row.law');
+    if (!row || !row.getAttribute('data-c') || c.closest('.editor') || !live.grid.contains(row)) return hideSel();
+    const phrase = phraseOf(range);
+    if (!phrase) return hideSel();
+    picked = { row: row, phrase: phrase };
+    const r = range.getBoundingClientRect();
+    seltools.hidden = false;
+    seltools.style.top = Math.max(0, r.top + window.scrollY - seltools.offsetHeight - 8) + 'px';
+    seltools.style.left = Math.max(8, Math.min(window.scrollX + r.left + r.width / 2 - seltools.offsetWidth / 2,
+      document.documentElement.clientWidth - seltools.offsetWidth - 8)) + 'px';
+  }
+
+  document.addEventListener('selectionchange', MT.debounce(checkSel, 200));
+  MT.bus.on('route', function (r) { if (r.id !== 'read') hideSel(); });
 
   /* Commentary material that isn't anchored to a law: its own intro, and any
      unnumbered chapters of general remarks (1-4's "General Applicability"). */
@@ -129,16 +362,33 @@
       disabled: !sec.hen,
       title: sec.hen ? (on ? 'Hide vowel points' : 'Show vowel points') : 'No pointed text for this section',
       onclick: function () {
-        MT.device.set({ niqqud: !MT.device.get('niqqud') });
-        UI.refresh();
+        MT.editor.close().then(function () {
+          MT.device.set({ niqqud: !MT.device.get('niqqud') });
+          UI.refresh();
+        });
       }
     });
+  }
+
+  function editToggle() {
+    const on = !!MT.device.get('editing');
+    return UI.el('button.chip.editchip', {
+      type: 'button', 'aria-pressed': on ? 'true' : 'false',
+      title: on ? 'Stop editing' : 'Edit: click a law or note to change it',
+      onclick: function () {
+        MT.editor.close().then(function () {
+          MT.device.set({ editing: !MT.device.get('editing') });
+          UI.refresh();
+        });
+      }
+    }, [MT.icons.pencil(), 'Edit']);
   }
 
   function applyCols(grid) {
     const cols = MT.device.get('cols');
     const on = COLS.filter(function (c) { return cols[c.key]; }).map(function (c) { return c.key; });
     grid.className = 'grid' + (grid.classList.contains('pointed') ? ' pointed' : '') +
+      (grid.classList.contains('editing') ? ' editing' : '') +
       ' cols-' + on.length + ' ' + on.map(function (k) { return 'show-' + k; }).join(' ');
   }
 
@@ -175,6 +425,30 @@
       link(n.next, MT.icons.next, 'Next chapter')]);
   }
 
+  /* What this section's drafts are, above the text: which files have
+     changes, whether the branch has moved on under any, and in edit mode
+     how editing works. */
+  function draftNote(ctx) {
+    const layers = Object.keys(ctx.raw.drafts);
+    const out = [];
+    if (layers.length) {
+      const stale = layers.filter(function (l) { return ctx.raw.stale[l]; });
+      out.push(UI.el('p.draftnote', [
+        'Unsubmitted changes here to the ' + layers.map(function (l) { return LAYER_NAME[l]; }).join(', ') + '. ',
+        stale.length ? 'The ' + stale.map(function (l) { return LAYER_NAME[l]; }).join(', ') +
+          ' changed on the branch after you began; your edits are kept as they are. ' : null,
+        UI.el('a', { href: '#/changes', text: 'Review all changes' })
+      ]));
+    }
+    if (ctx.editing) {
+      out.push(UI.el('p.draftnote.hint', [
+        'Click a law or a note to edit it. Edits are saved on this device as you type. ',
+        MT.device.get('name') ? null : UI.el('a', { href: '#/settings', text: 'Set your name to sign review notes.' })
+      ]));
+    }
+    return out;
+  }
+
   /* -------------------------------------------------------------- render */
 
   function render(host, ix, meta, raw, args) {
@@ -185,8 +459,14 @@
     const cur = chapters[i] || null;
     const key = cur ? cur.key : null;
 
-    const grid = UI.el('div.grid' + (sec.pointed ? '.pointed' : ''));
+    const editing = !!MT.device.get('editing');
+    const grid = UI.el('div.grid' + (sec.pointed ? '.pointed' : '') + (editing ? '.editing' : ''));
     applyCols(grid);
+
+    const ctx = {
+      id: raw.id, sec: sec, raw: raw, grid: grid, editing: editing,
+      heLayer: sec.pointed ? 'hen' : 'he', changes: lib.changes(raw)
+    };
 
     const head = UI.el('header.rhead', [
       UI.el('nav.crumbs', [
@@ -198,7 +478,8 @@
         UI.el('h2', { lang: 'he', dir: 'rtl', text: (sec.he && sec.he.title) || meta.he || '' })
       ]),
       UI.el('div.rbar', [pager(ix, meta, sec, chapters, i, true),
-        UI.el('div.toggles', [niqqudToggle(raw), colToggles(grid)])])
+        UI.el('div.toggles', [editToggle(), niqqudToggle(raw), colToggles(grid)])]),
+      draftNote(ctx)
     ]);
 
     /* The section's opening matter goes above its first chapter. */
@@ -220,26 +501,42 @@
           cell('co', null)
         ]));
       }
+      const chN = (cur.en || cur.he).n;
       const chIntroHe = cur.he ? paras(cur.he.intro, 'he') : [];
       const chIntroEn = cur.en ? paras(cur.en.intro) : [];
-      const chIntroCo = (cur.en || cur.he).n != null ? coChapter(sec.co, (cur.en || cur.he).n) : [];
+      const chIntroCo = chN != null ? coChapter(sec.co, chN) : [];
       if (chIntroHe.length || chIntroEn.length || chIntroCo.length) {
         grid.appendChild(row('intro', [cell('he', chIntroHe), cell('en', chIntroEn), cell('co', chIntroCo)]));
       }
 
       lib.laws(cur).forEach(function (l) {
         const href = UI.href('read', [sec.id, key, String(l.n)]);
-        grid.appendChild(row('law', [
-          lawCell('he', cur.he || cur.en, l.he, href),
-          lawCell('en', cur.en || cur.he, l.en, href),
-          notesCell(sec, key + ':' + l.n)
-        ], 'law-' + key + '-' + l.n));
+        const r = row('law', [
+          lawCell(ctx, 'he', cur.he || cur.en, l.he, href),
+          lawCell(ctx, 'en', cur.en || cur.he, l.en, href),
+          notesCell(ctx, key + ':' + l.n, chN, l.n)
+        ], 'law-' + key + '-' + l.n);
+        /* Notes are labelled chapter.law.n, so only laws of numbered
+           chapters can have them. */
+        if (chN != null) { r.setAttribute('data-c', chN); r.setAttribute('data-n', l.n); }
+        grid.appendChild(r);
       });
     }
+
+    grid.addEventListener('click', function (e) {
+      if (!ctx.editing) return;
+      const s = window.getSelection();
+      if (s && !s.isCollapsed) return;   // selecting, not clicking
+      if (e.target.closest('a, button, .editor')) return;
+      const t = e.target.closest('.note.editable') || e.target.closest('.cell.editable');
+      if (t && t._edit) t._edit();
+    });
 
     if (!sec.en) head.appendChild(UI.note('This section has no English file yet.'));
 
     nav = neighbours(ix, meta, chapters, i);
+    live = ctx;
+    hideSel();
     UI.fill(host, [head, grid, UI.el('footer.rfoot', [pager(ix, meta, sec, chapters, i, false)])]);
     document.title = ((sec.en && sec.en.title) || sec.id) + (cur && chapters.length > 1 ? ' · ' + lib.chapterName(cur) : '') + ' — MT Reader';
 
@@ -251,6 +548,12 @@
         target.scrollIntoView({ block: 'center' });
       }
     }
+  }
+
+  function row(cls, cells, id) {
+    const r = UI.el('div.row' + (cls ? '.' + cls : ''), cells);
+    if (id) r.id = id;
+    return r;
   }
 
   UI.route('read', {

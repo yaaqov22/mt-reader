@@ -97,6 +97,20 @@
       return c.source === 'local' ? 'local: ' + c.localBase : c.owner + '/' + c.repo + ' @ ' + c.branch;
     },
 
+    /* Names the source for drafts: an edit belongs to the branch (or local
+       folder) it was made against. */
+    key: function () {
+      const c = cfg();
+      return c.source === 'local' ? 'local:' + c.localBase : c.owner + '/' + c.repo + '@' + c.branch;
+    },
+
+    /* A file's blob SHA on the branch, or null (no such file, or the local
+       folder, which has no SHAs). Drafts record it as their base. */
+    sha: function (path) {
+      if (cfg().source === 'local') return Promise.resolve(null);
+      return tree().then(function (t) { return t.tree[path] || null; });
+    },
+
     text: function (path) {
       if (!texts.has(path)) {
         const p = cfg().source === 'local' ? localText(path) : githubText(path);

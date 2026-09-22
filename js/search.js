@@ -182,6 +182,7 @@
   }
 
   MT.bus.on('source', function () { corpusP = null; });
+  MT.bus.on('drafts', function () { corpusP = null; });
 
   /* -------------------------------------------------------------- query */
 
