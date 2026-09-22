@@ -43,6 +43,13 @@
     reload: function () {
       return svg('<path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v4.5h-4.5"/>');
     },
+    pencil: function () {
+      return svg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>');
+    },
+    changes: function () {
+      return svg('<path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5v4h4"/>' +
+                 '<path d="M9 12h6M12 9v6M9 17.5h6"/>');
+    },
     prev: function () { return svg('<path d="m14.5 6-6 6 6 6"/>'); },
     next: function () { return svg('<path d="m9.5 6 6 6-6 6"/>'); }
   };

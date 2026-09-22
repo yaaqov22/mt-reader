@@ -23,6 +23,9 @@
   --accent-soft: #f0e4d4;
   --bad: #a33a2c;
   --target: #fbf1c9;
+  --edit: #3f7d4e;
+  --ins: #dcefd9;
+  --del: #f6dcd6;
 
   --radius: 12px;
   --radius-sm: 8px;
@@ -50,6 +53,9 @@
     --accent-soft: #33291f;
     --bad: #d97a68;
     --target: #3a3222;
+    --edit: #86c493;
+    --ins: #23402a;
+    --del: #4a2621;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
   }
 }
@@ -67,6 +73,9 @@
   --accent-soft: #33291f;
   --bad: #d97a68;
   --target: #3a3222;
+  --edit: #86c493;
+  --ins: #23402a;
+  --del: #4a2621;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
@@ -135,6 +144,27 @@ a { color: var(--accent); }
 .iconbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .iconbtn.off { opacity: 0.3; cursor: default; }
 .iconbtn.off:hover { background: none; }
+.iconbtn { position: relative; }
+.topbar .brand { white-space: nowrap; }
+@media (max-width: 420px) {
+  .topbar { gap: 2px; padding-left: 12px; padding-right: 8px; }
+  .topbar .brand { font-size: 16px; letter-spacing: 0.02em; }
+}
+.badge {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--edit);
+  color: var(--bg);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
 
 .chip {
   display: inline-flex;
@@ -308,10 +338,10 @@ a { color: var(--accent); }
 /* Pointed text needs room above and below the letters for the points. */
 .grid.pointed .cell.he { line-height: 1.85; }
 
-.note { margin: 0 0 12px; padding-left: 10px; border-left: 2px solid var(--line); }
-.note:last-child { margin-bottom: 0; }
-.note.review { border-left-color: var(--accent); }
-.note p { margin: 0 0 0.5em; }
+div.note { margin: 0 0 12px; padding-left: 10px; border-left: 2px solid var(--line); }
+div.note:last-child { margin-bottom: 0; }
+div.note.review { border-left-color: var(--accent); }
+div.note p { margin: 0 0 0.5em; }
 .note-range { font-size: 12px; color: var(--faint); }
 .co-head { font-size: 15px; margin: 0 0 6px; color: var(--text); }
 
@@ -326,6 +356,144 @@ a { color: var(--accent); }
   .cell.co:empty { display: none; }
   .titles h1, .titles h2 { font-size: 22px; }
 }
+
+/* ------------------------------------------------------------- editing */
+
+.chip.editchip { gap: 5px; }
+.chip.editchip svg { width: 15px; height: 15px; }
+.chip.editchip[aria-pressed="true"] { background: var(--ins); border-color: var(--edit); }
+
+.draftnote { font-size: 13.5px; color: var(--dim); margin: 10px 0 0; }
+.draftnote.hint { color: var(--faint); }
+
+/* In edit mode what can be edited says so on hover. */
+.grid.editing .cell.editable,
+.grid.editing .note.editable { cursor: text; border-radius: 4px; }
+.grid.editing .cell.editable:hover,
+.grid.editing .note.editable:hover { background: var(--panel-lit); box-shadow: 0 0 0 4px var(--panel-lit); }
+.cell.editing:hover, .note.editing:hover { background: none !important; box-shadow: none !important; }
+
+/* A changed law or note: a green rule on its reading edge, drawn outside the
+   text so that the columns stay aligned. */
+.cell.changed { border-inline-start: 3px solid var(--edit); padding-inline-start: 9px; margin-inline-start: -12px; }
+div.note.changed, div.note.new { border-left-color: var(--edit); }
+div.note.deleted { border-left-color: var(--bad); }
+div.note.deleted p { text-decoration: line-through; opacity: 0.65; }
+
+.chg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  margin-top: 4px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--edit);
+  direction: ltr;
+  text-align: left;
+}
+.linkbtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.linkbtn:hover { text-decoration: underline; }
+.linkbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.showdiff > :not(.diff):not(.chg) { display: none; }
+.diff {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--panel-lit);
+  font-size: 0.85em;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.diff ins { background: var(--ins); text-decoration: none; border-radius: 3px; }
+.diff del { background: var(--del); text-decoration: line-through; text-decoration-color: var(--bad); border-radius: 3px; }
+
+.addnote { display: flex; gap: 14px; margin-top: 8px; opacity: 0.55; }
+.row:hover .addnote, .addnote:focus-within { opacity: 1; }
+
+.editor { width: 100%; }
+.edit-area {
+  display: block;
+  width: 100%;
+  min-height: 5em;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  line-height: inherit;
+  resize: vertical;
+  overflow: hidden;
+}
+.edit-area:focus { outline: 2px solid var(--accent-soft); }
+.edit-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--faint);
+  direction: ltr;
+}
+.edit-status { flex: 1; }
+.edit-hint { font-family: ui-monospace, Consolas, monospace; }
+.edit-error { margin: 6px 0 0; font-family: var(--font-ui); font-size: 13px; color: var(--bad); direction: ltr; text-align: left; }
+.btn.small { min-height: 30px; padding: 3px 12px; font-size: 13px; }
+
+.seltools {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--text);
+  box-shadow: var(--shadow);
+}
+.seltools button {
+  padding: 7px 12px;
+  border: 0;
+  background: none;
+  color: var(--bg);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  cursor: pointer;
+}
+.seltools button + button { border-left: 1px solid color-mix(in srgb, var(--bg) 25%, transparent); }
+.seltools button:hover { background: color-mix(in srgb, var(--bg) 15%, transparent); }
+
+/* ------------------------------------------------------------- changes */
+
+#screen-changes { max-width: 980px; margin: 0 auto; }
+.chsec-head { display: flex; align-items: baseline; gap: 12px; }
+.chsec-head h2 a { color: var(--text); text-decoration: none; }
+.chsec-head h2 a:hover { text-decoration: underline; }
+.chsec-id { color: var(--faint); font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.chfile { margin-top: 10px; }
+.chfile + .chfile { margin-top: 18px; }
+.chfile-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 4px; }
+.chfile-head h3 { font-size: 15.5px; }
+.chfile-path { font-size: 12px; color: var(--faint); }
+.chfile-when { flex: 1; font-size: 12px; color: var(--faint); }
+.chitem { padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.chitem-head { display: flex; align-items: baseline; gap: 12px; }
+.chitem-ref { font-weight: 600; font-size: 14px; text-decoration: none; }
+.chitem-ref:hover { text-decoration: underline; }
+.chitem-what { flex: 1; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); }
+.chitem .diff { font-family: var(--font); font-size: 15px; }
+.chitem .diff[lang="he"] { font-family: var(--font-he); font-size: 18px; }
+ul.plain { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
 
 /* -------------------------------------------------------------- search */
 

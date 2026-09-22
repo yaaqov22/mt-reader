@@ -16,6 +16,20 @@
     search.appendChild(MT.icons.search());
     MT.bus.on('route', function (r) { search.classList.toggle('on', r.id === 'search'); });
 
+    const changes = document.getElementById('changes-btn');
+    const badge = changes.querySelector('.badge');
+    changes.insertBefore(MT.icons.changes(), badge);
+    const count = function () {
+      const n = MT.drafts.count();
+      badge.textContent = n;
+      badge.hidden = !n;
+      changes.title = n ? n + (n === 1 ? ' file' : ' files') + ' changed on this device' : 'Changes on this device';
+    };
+    MT.drafts.ready().then(count);
+    MT.bus.on('drafts', count);
+    MT.bus.on('source', count);
+    MT.bus.on('route', function (r) { changes.classList.toggle('on', r.id === 'changes'); });
+
     const home = document.getElementById('home-btn');
     home.appendChild(MT.icons.books());
 

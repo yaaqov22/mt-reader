@@ -89,6 +89,8 @@
       who.classList.remove('bad');
       MT.github.user(token.value.trim()).then(function (u) {
         who.textContent = 'Token belongs to ' + u.login + (u.name ? ' (' + u.name + ')' : '') + '.';
+        /* The login is the natural signature for review notes. */
+        if (!MT.device.get('name')) { MT.device.set({ name: u.login }); name.value = u.login; }
       }, function (e) {
         who.textContent = e.message;
         who.classList.add('bad');
@@ -100,6 +102,9 @@
       { value: 'light', label: 'Light' },
       { value: 'dark', label: 'Dark' }
     ], d.theme, function () { MT.device.set({ theme: theme.value }); MT.applyTheme(); });
+
+    const name = UI.input({ value: d.name, autocomplete: 'off', spellcheck: 'false', placeholder: 'e.g. your GitHub login',
+      onchange: function () { MT.device.set({ name: name.value.trim() }); UI.toast('Saved.'); } });
 
     const progress = UI.el('p.status');
     const dl = UI.btn('Download all texts', {
@@ -142,6 +147,10 @@
         UI.note('Texts are saved on this device as you read them. Download everything to read the whole work offline.'),
         UI.el('div.actions', [dl, clear]),
         progress
+      ]),
+      card('Editing', [
+        UI.field('Your name', name, 'Signs the review notes you write: **name** date - note. Checking the token fills it in.'),
+        UI.el('p.field-hint', [UI.el('a', { href: '#/changes', text: 'Changes on this device' })])
       ]),
       card('Appearance', [UI.field('Theme', theme)]),
       UI.el('p.version', { text: 'MT Reader ' + MT.VERSION })
