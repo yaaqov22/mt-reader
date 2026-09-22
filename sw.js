@@ -6,7 +6,7 @@
    2. The entry point is network-first, so a deployed change is seen.
    3. A new worker never reloads the page; main.js toasts instead. */
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE = 'mt-reader-' + CACHE_VERSION;
 
 /* Must match the script tags in index.html. */
@@ -35,8 +35,11 @@ const SHELL = [
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE).then((cache) =>
+      /* cache: 'reload' goes past the browser's HTTP cache. GitHub Pages
+         serves everything with max-age=600, so a plain fetch here would
+         happily fill the new version's cache with the old version's files. */
       Promise.all(SHELL.map((url) =>
-        cache.add(url).catch((err) => console.warn('[sw] skipped ' + url, err))
+        cache.add(new Request(url, { cache: 'reload' })).catch((err) => console.warn('[sw] skipped ' + url, err))
       ))
     ).then(() => self.skipWaiting())
   );
@@ -75,7 +78,9 @@ self.addEventListener('fetch', (e) => {
 
   e.respondWith(
     caches.match(req).then((hit) => {
-      const net = fetch(req).then((res) => {
+      /* no-cache: revalidate with the server rather than reuse the HTTP
+         cache's copy, for the same reason as at install. */
+      const net = fetch(req.url, { cache: 'no-cache' }).then((res) => {
         if (res && res.status === 200 && res.type === 'basic') {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(req, copy));
