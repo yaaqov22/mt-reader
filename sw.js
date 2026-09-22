@@ -6,7 +6,7 @@
    2. The entry point is network-first, so a deployed change is seen.
    3. A new worker never reloads the page; main.js toasts instead. */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE = 'mt-reader-' + CACHE_VERSION;
 
 /* Must match the script tags in index.html. */

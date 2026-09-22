@@ -77,6 +77,13 @@
       const ref = branch.split('/').map(encodeURIComponent).join('/');
       return request(repoPath() + '/git/ref/heads/' + ref)
         .catch(function (e) {
+          /* GitHub answers "not found" for a private repository you aren't
+             signed in to, so with no token that is almost certainly what this
+             is — the first thing every new reader sees. Say so plainly. */
+          if (e.code === 'notfound' && !MT.device.get('token')) {
+            throw fail('needtoken', 'The texts are in a private GitHub repository (' + MT.device.get('owner') + '/' +
+              MT.device.get('repo') + '). To read them, add your GitHub access token in Settings.', 404);
+          }
           if (e.code === 'notfound') {
             throw fail('notfound', 'Can\'t find branch "' + branch + '" in ' + MT.device.get('owner') + '/' +
               MT.device.get('repo') + '. If the repository is private, the token in Settings needs access to it.', 404);

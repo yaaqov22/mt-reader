@@ -49,6 +49,12 @@
       UI.field('Personal access token', token,
         'A fine-grained token for this repository with Contents: read (M3 will also need write, and ' +
         'Pull requests: write). It is stored only on this device.'),
+      UI.el('p.field-hint', [
+        UI.el('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank',
+          rel: 'noopener noreferrer', text: 'Create a token on GitHub' }),
+        ' — choose "Only select repositories", pick ' + d.owner + '/' + d.repo +
+        ', and under Repository permissions set Contents to "Read-only". Then paste it above and Save.'
+      ]),
       who
     ]);
     const localFields = UI.el('div.fields', [
