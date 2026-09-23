@@ -144,6 +144,21 @@
 
   function screenEl(id) { return document.getElementById('screen-' + id); }
 
+  /* The top bar's breadcrumb: "Mishneh Torah", then `parts` ([{ text,
+     href }], the last being where you are). A screen that has nowhere
+     deeper to say leaves just the root, which the router puts back. */
+  UI.crumbs = function (parts) {
+    const nav = document.getElementById('crumbs');
+    if (!nav) return;
+    const all = [{ text: 'Mishneh Torah', href: '#/books' }].concat(parts || []);
+    UI.fill(nav, all.map(function (p, i) {
+      const last = i === all.length - 1;
+      const bit = p.href && !last ? UI.el('a.crumb', { href: p.href, text: p.text })
+        : UI.el('span.crumb', { text: p.text, 'aria-current': last ? 'page' : null });
+      return i ? [UI.el('span.sep', { 'aria-hidden': 'true', text: '›' }), bit] : bit;
+    }));
+  };
+
   function parseHash() {
     const parts = (location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean)
       .map(decodeURIComponent);
@@ -164,6 +179,8 @@
 
     const changedScreen = current.id !== id;
     current = { id: id, args: args };
+
+    if (id !== 'read') UI.crumbs([]);   // the reader sets its own as it renders
 
     if (!def.mounted) {
       def.mounted = true;

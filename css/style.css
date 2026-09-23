@@ -119,14 +119,28 @@ a { color: var(--accent); }
   border-bottom: 1px solid var(--line-soft);
 }
 
-.topbar .brand {
+/* The breadcrumb stands where a title would: "Mishneh Torah › book ›
+   section", all one size. When space runs short the book's name gives way
+   first, then the section's. */
+.crumbs {
   flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
   font-family: var(--font);
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.055em;
-  color: var(--text);
-  text-decoration: none;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--dim); text-decoration: none; }
+.crumbs > .crumb:first-child { flex: none; }
+.crumbs > .crumb:nth-child(3):not(:last-child) { flex: 0 3 auto; }
+.crumbs > .crumb:last-child { flex: 0 1 auto; color: var(--text); font-weight: 600; }
+a.crumb:hover { color: var(--accent); }
+.crumbs .sep { flex: none; color: var(--faint); }
+/* Phones have room for one: where you are (the Books button goes home). */
+@media (max-width: 640px) {
+  .crumbs > :not(:last-child) { display: none; }
 }
 
 .iconbtn {
@@ -151,10 +165,9 @@ a { color: var(--accent); }
 .iconbtn.off { opacity: 0.3; cursor: default; }
 .iconbtn.off:hover { background: none; }
 .iconbtn { position: relative; }
-.topbar .brand { white-space: nowrap; }
 @media (max-width: 420px) {
   .topbar { gap: 2px; padding-left: 12px; padding-right: 8px; }
-  .topbar .brand { font-size: 16px; letter-spacing: 0.02em; }
+  .crumbs { font-size: 14px; gap: 5px; }
 }
 .badge {
   position: absolute;
@@ -256,9 +269,9 @@ a { color: var(--accent); }
 
 /* -------------------------------------------------------------- reader */
 
-/* The header sticks under the top bar: one line of where you are, one of
-   the chapter and the buttons. reader.js measures it into --rhead-h so a
-   row scrolled to lands clear of it. */
+/* The header sticks under the top bar (which says where you are): the
+   chapter and the buttons. reader.js measures it into --rhead-h so a row
+   scrolled to lands clear of it. */
 .rhead {
   position: sticky;
   top: calc(var(--topbar-h) + env(safe-area-inset-top));
@@ -269,14 +282,7 @@ a { color: var(--accent); }
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line-soft);
 }
-.rtitle { display: flex; align-items: baseline; gap: 8px; min-width: 0; white-space: nowrap; }
-.crumbs { flex: none; font-size: 13px; color: var(--faint); }
-.crumbs a { color: var(--dim); text-decoration: none; }
-.crumbs a:hover { text-decoration: underline; }
-.rtitle h1 { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 19px; }
-.rtitle h2 { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-he); font-size: 20px; font-weight: 600; color: var(--dim); }
-
-.rbar { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; margin-top: 6px; }
+.rbar { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
 .pager { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .pager .iconbtn { width: 32px; height: 32px; min-width: 32px; }
 .chsel {
@@ -433,9 +439,6 @@ div.note p { margin: 0 0 0.5em; }
   .rhead { margin: -12px -14px 0; padding: 6px 14px; }
   .grid .row .text { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .cell.he { font-size: 20px; }
-  .rtitle .crumbs { display: none; }
-  .rtitle h1 { font-size: 17px; }
-  .rtitle h2 { font-size: 18px; }
 }
 /* Phones: chapter and buttons on one line; the footer keeps prev/next. */
 @media (max-width: 480px) {

@@ -663,15 +663,14 @@
       branch: (up && up.changes) || {}, base: MT.device.get('baseBranch')
     };
 
+    /* Where this is, in the top bar. A book's opening shares the book's
+       name, so it isn't said twice. */
+    const bookName = meta.book.en || 'Book ' + meta.book.id;
+    const title = (sec.en && sec.en.title) || meta.en || sec.id;
+    const crumbs = [{ text: bookName, href: UI.href('books', [meta.book.id]) }];
+    if (title !== bookName) crumbs.push({ text: title });
+
     const head = UI.el('header.rhead', [
-      UI.el('div.rtitle', [
-        UI.el('nav.crumbs', [
-          UI.el('a', { href: '#/books', text: 'Books' }), ' › ',
-          UI.el('a', { href: UI.href('books', [meta.book.id]), text: meta.book.en || 'Book ' + meta.book.id }), ' ›'
-        ]),
-        UI.el('h1', { text: (sec.en && sec.en.title) || meta.en || sec.id }),
-        UI.el('h2', { lang: 'he', dir: 'rtl', text: (sec.he && sec.he.title) || meta.he || '' })
-      ]),
       UI.el('div.rbar', [pager(ix, meta, sec, chapters, i, true, MT.review.chapters(ctx.branch)),
         UI.el('div.toggles', [viewGroup(grid, raw), UI.el('div.segs', [editToggle(), marksToggle()])])])
     ]);
@@ -713,6 +712,7 @@
     nav = neighbours(ix, meta, chapters, i);
     live = ctx;
     hideSel();
+    UI.crumbs(crumbs);
     UI.fill(host, [head, notes, grid, UI.el('footer.rfoot', [pager(ix, meta, sec, chapters, i, false)])]);
     fitHead(head);
     document.title = ((sec.en && sec.en.title) || sec.id) + (cur && chapters.length > 1 ? ' · ' + lib.chapterName(cur) : '') + ' — MT Reader';
