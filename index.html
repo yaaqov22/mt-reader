@@ -17,8 +17,9 @@
 <header class="topbar">
   <a class="brand" href="#/books">MT Reader</a>
   <!-- Which branch is being read, always visible: reading the wrong branch is
-       the one mistake that looks exactly like reading the right one. -->
-  <a id="source-chip" class="chip source" href="#/settings"></a>
+       the one mistake that looks exactly like reading the right one.
+       It opens the branch switcher. -->
+  <a id="source-chip" class="chip source" href="#/branches"></a>
   <a id="search-btn" class="iconbtn" href="#/search" aria-label="Search" title="Search (/)"></a>
   <a id="changes-btn" class="iconbtn" href="#/changes" aria-label="Changes" title="Changes on this device"><span class="badge" hidden></span></a>
   <a id="home-btn" class="iconbtn" href="#/books" aria-label="Books" title="Books"></a>
@@ -32,6 +33,7 @@
   <section id="screen-read" class="screen"></section>
   <section id="screen-search" class="screen"></section>
   <section id="screen-changes" class="screen"></section>
+  <section id="screen-branches" class="screen"></section>
   <section id="screen-settings" class="screen"></section>
 </main>
 
@@ -52,11 +54,13 @@
 <script src="js/source.js"></script>
 <script src="js/drafts.js"></script>
 <script src="js/library.js"></script>
+<script src="js/review.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/books.js"></script>
 <script src="js/reader.js"></script>
 <script src="js/search.js"></script>
 <script src="js/changes.js"></script>
+<script src="js/branches.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/main.js"></script>
 </body>

@@ -24,7 +24,11 @@ and no build step, installable on desktop now and wrapped for Android
 - [x] **M3: submitting to GitHub.** One commit per submission on a branch
   per person per day, a pull request, a per-law three-way merge with the
   branch, and a side-by-side resolver for real conflicts.
-- [ ] M4: review workflow (branches, diffs, notes column, search)
+- [x] **M4: review workflow.** A Branches screen (open pull requests and
+  every branch, one click to read one), what a branch changed compared with
+  master or its pull request's base marked in blue in the reader and listed
+  law by law, changed sections tagged in the contents, and review notes in
+  a column of their own.
 - [ ] M5: PWA polish
 - [ ] M6: Android shell
 
@@ -55,6 +59,7 @@ No build step. Serve the folder over HTTP and open `index.html`.
 | `#/search/<query>` | search results; `/he.en.co~3~w` after it picks layers, book, whole words |
 | `#/read/1-1/3/5/<query>` | law 5 with the query highlighted (where results lead) |
 | `#/changes` | every draft on this device for the branch being read, and submitting them |
+| `#/branches` | open pull requests and branches to read, and what the branch being read changes |
 | `#/settings` | source, token, your name, offline, theme |
 
 ← and → move between chapters; / opens search.
@@ -93,6 +98,22 @@ note whose number someone else took meanwhile is renumbered, not flagged.
 Submitted drafts are removed, and the pull request is linked at the top of the
 screen.
 
+**Reviewing** (GitHub source only). The branch chip in the top bar opens
+the Branches screen: the open pull requests and every branch, each with
+*Read*. Reading a pull request's branch compares it with the pull request's
+base, any other branch with master (*Compared with* changes it). The
+comparison is taken from the two branches' merge base, as GitHub's own pull
+request diff is, so work merged into master since doesn't show as undone
+(`js/review.js`; three API calls per branch per session, kept for offline).
+What the branch changed is listed on that screen law by law with diffs, the
+sections it touched are tagged in the contents, and in the reader each
+changed law or note has a blue rule with *diff* (the *vs master* chip turns
+the marks off; changed chapters are flagged in the chapter list). Your own
+drafts are still green, on top. Drafts belong to the branch they were made
+on, so switching never mixes them. Review notes have their own column
+(*Notes*), which steps aside in sections that have none, except in edit
+mode.
+
 **Search** loads every section once per session (from the offline cache when
 it can; on GitHub the first search downloads the texts, after which they are
 kept) and scans it in memory: about 1.3 s to prepare, ~50 ms a query. All words
@@ -117,9 +138,10 @@ Plain scripts on a global `MT` namespace, loaded in dependency order by
 | `github.js` | GitHub REST client: reading, and the Git Data and pull request calls |
 | `source.js` | GitHub or local folder, and the offline cache |
 | `drafts.js` | local edits, one whole file per draft, in IndexedDB |
+| `review.js` | what the branch being read changed compared with its base, law by law |
 | `library.js` | index and parsed sections, merged law by law, drafts applied; `lib.edit` |
 | `editor.js` | the in-place textarea editor, autosaving |
-| `books.js`, `reader.js`, `search.js`, `changes.js`, `settings.js` | the screens (search.js also holds the search engine) |
+| `books.js`, `reader.js`, `search.js`, `changes.js`, `branches.js`, `settings.js` | the screens (search.js also holds the search engine) |
 | `main.js` | boot, top bar, service worker |
 
 ## The file format

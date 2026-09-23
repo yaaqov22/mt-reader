@@ -2,7 +2,8 @@
    index.json. The home screen.
 
    #/books opens every book; #/books/3 opens only the third, which is where the
-   reader's breadcrumb sends you. */
+   reader's breadcrumb sends you. Reading a branch, the sections it changed
+   are tagged (review.js). */
 
 (function (MT) {
   'use strict';
@@ -13,7 +14,7 @@
   function sectionLink(s) {
     const first = s.chapters[0];
     const chapters = s.chapters.filter(function (c) { return c.n != null; }).length;
-    return UI.el('a.sec', { href: UI.href('read', first ? [s.id, first.key] : [s.id]) }, [
+    return UI.el('a.sec', { href: UI.href('read', first ? [s.id, first.key] : [s.id]), 'data-sec': s.id }, [
       UI.el('span.sec-id', { text: s.id }),
       UI.el('span.sec-en', { text: s.en || s.id }),
       UI.el('span.sec-he', { lang: 'he', dir: 'rtl', text: s.he || '' }),
@@ -41,6 +42,20 @@
       const el = document.getElementById('book-' + open);
       if (el) el.scrollIntoView({ block: 'start' });
     }
+    markChanged(host);
+  }
+
+  /* On a branch other than its base, tag the sections it changed. Nothing
+     to show when there is no comparison, or it fails (the reader says why). */
+  function markChanged(host) {
+    const mine = seq;
+    MT.review.info().then(function (info) {
+      if (!info || mine !== seq) return;
+      info.sections.forEach(function (layers, id) {
+        const a = host.querySelector('a.sec[data-sec="' + id + '"] .sec-meta');
+        if (a) a.appendChild(UI.el('span.tag.up', { text: 'changed', title: 'Changed on this branch compared with ' + info.base }));
+      });
+    }, function () {});
   }
 
   UI.route('books', {

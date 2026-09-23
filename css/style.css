@@ -26,6 +26,8 @@
   --edit: #3f7d4e;
   --ins: #dcefd9;
   --del: #f6dcd6;
+  --up: #2f6a9a;
+  --up-soft: #e1ecf5;
 
   --radius: 12px;
   --radius-sm: 8px;
@@ -56,6 +58,8 @@
     --edit: #86c493;
     --ins: #23402a;
     --del: #4a2621;
+    --up: #7fb0dc;
+    --up-soft: #1f2d3a;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
   }
 }
@@ -76,6 +80,8 @@
   --edit: #86c493;
   --ins: #23402a;
   --del: #4a2621;
+  --up: #7fb0dc;
+  --up-soft: #1f2d3a;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
@@ -182,6 +188,7 @@ a { color: var(--accent); }
 }
 .chip.source { max-width: 40vw; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
 .chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.chip.source.on { border-color: var(--accent); color: var(--text); }
 .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* ---------------------------------------------------------------- main */
@@ -278,17 +285,13 @@ a { color: var(--accent); }
 /* The grid. Every row repeats the same column template, which is what keeps
    a Hebrew law and its translation starting on the same line. Hidden columns
    drop out of the template (`show-*` classes, set by reader.js). */
-.grid { --c-he: 1fr; --c-en: 1.15fr; --c-co: 0.85fr; }
-.grid .row { display: grid; gap: 28px; padding: 12px 6px; border-bottom: 1px solid var(--line-soft); }
+.grid .row { display: grid; grid-template-columns: var(--cols); gap: 28px; padding: 12px 6px; border-bottom: 1px solid var(--line-soft); }
 .grid:not(.show-he) .cell.he,
 .grid:not(.show-en) .cell.en,
-.grid:not(.show-co) .cell.co { display: none; }
-
-.grid.show-he.show-en.show-co .row { grid-template-columns: var(--c-he) var(--c-en) var(--c-co); }
-.grid.cols-2.show-he.show-en .row { grid-template-columns: var(--c-he) var(--c-en); }
-.grid.cols-2.show-he.show-co .row { grid-template-columns: var(--c-he) var(--c-co); }
-.grid.cols-2.show-en.show-co .row { grid-template-columns: var(--c-en) var(--c-co); }
-.grid.cols-1 .row { grid-template-columns: minmax(0, 760px); justify-content: center; }
+.grid:not(.show-co) .cell.co,
+.grid:not(.show-notes) .cell.notes { display: none; }
+.grid.cols-1 .row { justify-content: center; }
+.grid.cols-4 .row { gap: 22px; }
 
 .row.law { scroll-margin-top: calc(var(--topbar-h) + 16px); }
 .row.law.target { background: var(--target); border-radius: var(--radius-sm); }
@@ -301,7 +304,7 @@ a { color: var(--accent); }
 .cell p:last-child { margin-bottom: 0; }
 .cell.en { font-family: var(--font); font-size: 17px; line-height: 1.6; }
 .cell.he { font-family: var(--font-he); font-size: 21px; line-height: 1.65; text-align: justify; }
-.cell.co { font-size: 14.5px; line-height: 1.55; color: var(--dim); }
+.cell.co, .cell.notes { font-size: 14.5px; line-height: 1.55; color: var(--dim); }
 .cell.empty .missing { color: var(--faint); font-style: italic; font-size: 14px; font-family: var(--font-ui); }
 
 .label {
@@ -349,11 +352,9 @@ div.note p { margin: 0 0 0.5em; }
 @media (max-width: 900px) {
   .screen { padding: 12px 14px 0; }
   .grid .row,
-  .grid.cols-2 .row,
-  .grid.cols-1 .row,
-  .grid.show-he.show-en.show-co .row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .grid.cols-4 .row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .cell.he { font-size: 20px; }
-  .cell.co:empty { display: none; }
+  .cell.co:empty, .cell.notes:empty { display: none; }
   .titles h1, .titles h2 { font-size: 22px; }
 }
 
@@ -379,6 +380,17 @@ div.note p { margin: 0 0 0.5em; }
 div.note.changed, div.note.new { border-left-color: var(--edit); }
 div.note.deleted { border-left-color: var(--bad); }
 div.note.deleted p { text-decoration: line-through; opacity: 0.65; }
+
+/* What the branch being read changed compared with its base (review.js):
+   the same rule in blue. A draft's green, drawn after, wins where both are. */
+.cell.branched { border-inline-start: 3px solid var(--up); padding-inline-start: 9px; margin-inline-start: -12px; }
+.cell.branched.changed { border-inline-start-color: var(--edit); }
+div.note.branched { border-left-color: var(--up); }
+div.note.branched.changed { border-left-color: var(--edit); }
+.chg.up { color: var(--up); }
+.draftnote.up { color: var(--up); }
+.draftnote.up.bad { color: var(--bad); }
+.chip.markchip[aria-pressed="true"] { background: var(--up-soft); border-color: var(--up); }
 
 .chg {
   display: flex;
@@ -475,7 +487,7 @@ div.note.deleted p { text-decoration: line-through; opacity: 0.65; }
 
 /* ------------------------------------------------------------- changes */
 
-#screen-changes { max-width: 980px; margin: 0 auto; }
+#screen-changes, #screen-branches { max-width: 980px; margin: 0 auto; }
 .chsec-head { display: flex; align-items: baseline; gap: 12px; }
 .chsec-head h2 a { color: var(--text); text-decoration: none; }
 .chsec-head h2 a:hover { text-decoration: underline; }
@@ -629,3 +641,20 @@ mark { background: #f3d77a; color: #241f18; border-radius: 3px; padding: 0 1px; 
   z-index: 50;
 }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* ------------------------------------------------------------ branches */
+
+.basebar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-size: 14px; color: var(--dim); }
+.basesel { min-height: 34px; padding: 4px 10px; max-width: 100%; }
+.chlayer { margin: 12px 0 2px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--up); }
+.blist { list-style: none; margin: 0; padding: 0; }
+.bitem { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.bitem:first-child { border-top: 0; }
+.bitem-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bitem-title { overflow-wrap: anywhere; }
+code.bitem-title { font-size: 13.5px; }
+.bitem-meta { font-size: 12.5px; color: var(--faint); overflow-wrap: anywhere; }
+.bitem.current .bitem-title { font-weight: 600; }
+.tag { display: inline-block; margin-inline-start: 6px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; font-family: var(--font-ui); font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+.tag.on { border-color: var(--up); color: var(--up); }
+.sec .tag.up { border-color: var(--up); color: var(--up); }

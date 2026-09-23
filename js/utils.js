@@ -49,10 +49,12 @@
     owner: 'yaaqov22',
     repo: 'mishneh-torah',
     branch: 'master',
+    baseBranch: 'master',  // what a branch is compared with: its pull request's base, or master
     token: '',
     localBase: '../mishneh-torah-migration/',
     theme: 'system',
-    cols: { he: true, en: true, co: true },
+    cols: { he: true, en: true, co: true, notes: true },
+    marks: true,    // mark what the branch changed compared with baseBranch
     niqqud: false,
     editing: false,
     name: '',       // signs review notes; filled from the token's login when checked
@@ -63,7 +65,11 @@
   let device = Object.assign({}, DEFAULTS, load('device.v1', {}));
 
   MT.device = {
-    get: function (k) { return device[k]; },
+    get: function (k) {
+      /* A column added since the setting was saved shows, as it would have by default. */
+      if (k === 'cols') return Object.assign({}, DEFAULTS.cols, device.cols);
+      return device[k];
+    },
     all: function () { return Object.assign({}, device); },
     /* One write for several keys, one event: Settings saves a whole form. */
     set: function (patch) {
