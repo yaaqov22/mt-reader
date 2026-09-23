@@ -50,6 +50,16 @@
       return svg('<path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5v4h4"/>' +
                  '<path d="M9 12h6M12 9v6M9 17.5h6"/>');
     },
+    comment: function () {
+      return svg('<path d="M4.5 5.5h15v10h-9l-4.5 4v-4h-1.5z"/><path d="M8.5 9.5h7M8.5 12.5h4.5"/>');
+    },
+    note: function () {
+      return svg('<path d="M5 4.5h14v9.5l-5 5.5H5z"/><path d="M14 19.5V14h5"/><path d="M8.5 8.5h7M8.5 11.5h4"/>');
+    },
+    branch: function () {
+      return svg('<circle cx="7" cy="5.5" r="2"/><circle cx="7" cy="18.5" r="2"/><circle cx="17" cy="8" r="2"/>' +
+                 '<path d="M7 7.5v9M17 10c0 4-10 2.5-10 6.5"/>');
+    },
     prev: function () { return svg('<path d="m14.5 6-6 6 6 6"/>'); },
     next: function () { return svg('<path d="m9.5 6 6 6-6 6"/>'); }
   };

@@ -336,9 +336,13 @@
 
   /* ---------- notes documents (commentary, review notes) ---------- */
 
+  // "<chapter>.<unit>[-<unit>].<n>", naming a text unit (see units() below):
+  // "3.5.1" law 3:5, "0b.4.1" law 4 of the second unnumbered run, "i.3.1"
+  // paragraph 3 of the section's opening, "x2.i4.1" paragraph 4 of the second
+  // unnumbered chapter's intro. c and h are kept as the strings of the key.
   function parseNoteLabel(label) {
-    const m = label.match(/^(\d+)\.(\d+)(?:-(\d+))?\.(\d+)$/);
-    return m ? { c: +m[1], h: +m[2], h2: m[3] ? +m[3] : null, i: +m[4] } : { c: null, h: null, h2: null, i: null };
+    const m = label.match(/^(i|x\d+|\d+[a-z]?)\.(i?\d+)(?:-(i?\d+))?\.(\d+)$/);
+    return m ? { c: m[1], h: m[2], h2: m[3] || null, i: +m[4] } : { c: null, h: null, h2: null, i: null };
   }
 
   function parseNotes(src) {
@@ -353,7 +357,7 @@
         if (!m[2]) doc.warnings.push(`note [^${m[1]}] missing its colon`);
         const note = { label: m[1], ...parseNoteLabel(m[1]), text: b.slice(m[0].length), more: [] };
         if (note.c == null) doc.warnings.push(`note label [^${m[1]}] not in c.h.n form`);
-        else if (ch.n != null && note.c !== ch.n) doc.warnings.push(`note [^${m[1]}] under chapter ${ch.n}`);
+        else if (ch.n != null && note.c !== String(ch.n)) doc.warnings.push(`note [^${m[1]}] under chapter ${ch.n}`);
         ch.notes.push(note);
         last = note; lastCh = ch;
         return true;
@@ -428,9 +432,50 @@
     return m;
   }
 
-  // The law key a note is anchored to (first law of a range), or null.
+  // The unit key a note is anchored to (first unit of a range), or null.
   function noteKey(note) {
     return note.c == null ? null : `${note.c}:${note.h}`;
+  }
+
+  /* ---------- units ---------- */
+
+  // The units of a text document, in order: what is edited, noted, merged
+  // and reviewed one at a time. Every law is one, keyed "chapter:law" ("3:5",
+  // "0b:4"). So is every paragraph outside a law, numbered from 1:
+  //   "i:3"    the section's opening (front matter, then the intro under the
+  //            title: a book's opening, a section's list of commandments)
+  //   "x2:i4"  a chapter's intro (0-4's unnumbered chapters are nothing else)
+  // A paragraph unit is { key, ch (null for the opening), list, at, n }, its
+  // text being list[at]; a law unit is { key, ch, law }.
+  function paraKey(ch, n) {
+    return ch ? `${ch.key}:i${n}` : `i:${n}`;
+  }
+
+  function units(doc) {
+    const out = [];
+    if (!doc) return out;
+    let n = 0;
+    for (const list of [doc.front, doc.intro]) {
+      list.forEach((b, at) => { n++; out.push({ key: paraKey(null, n), ch: null, list, at, n }); });
+    }
+    for (const ch of doc.chapters) {
+      ch.intro.forEach((b, at) => out.push({ key: paraKey(ch, at + 1), ch, list: ch.intro, at, n: at + 1 }));
+      for (const law of ch.laws || []) out.push({ key: `${ch.key}:${law.n}`, ch, law });
+    }
+    return out;
+  }
+
+  // A key's own paragraph number, or null for a law: "i:3" → 3, "x2:i4" → 4.
+  function paraNumber(key) {
+    const m = /^(?:i:(\d+)|[^:]+:i(\d+))$/.exec(key || '');
+    return m ? +(m[1] || m[2]) : null;
+  }
+
+  // How a unit is named to people: "law 3:5", "opening ¶3", "¶4 of x2".
+  function unitName(key) {
+    const p = paraNumber(key);
+    if (p == null) return 'law ' + key;
+    return key.startsWith('i:') ? 'opening ¶' + p : '¶' + p + ' of ' + key.split(':')[0];
   }
 
   MT.format = {
@@ -438,5 +483,6 @@
     splitBlocks, parseHeading, parseLabel, headingText, labelText,
     parseText, writeText, parseNotes, writeNotes, parseNoteLabel,
     parse, write, paths, classify, lawMap, noteKey, SECTION_RE,
+    units, paraKey, paraNumber, unitName,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

@@ -65,7 +65,7 @@
     const lang = layer === 'he' || layer === 'hen' ? 'he' : 'en';
     const k = (change.key || '').split(':');
     const href = k.length === 2 ? UI.href('read', [id, k[0], k[1]]) : UI.href('read', [id]);
-    const title = change.kind === 'law' ? 'Law ' + change.key
+    const title = change.kind === 'law' ? MT.cap(MT.format.unitName(change.key))
       : change.kind === 'note' ? 'Note [^' + change.label + '] on ' + change.key : 'Other changes to the file';
     const what = change.before === null ? 'added' : change.after === null ? 'deleted' : 'changed';
     const body = change.kind === 'other' ? UI.note('Changes outside the laws and notes.')

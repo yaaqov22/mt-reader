@@ -117,15 +117,21 @@
     ['he', 'hen', 'en'].forEach(function (layer) {
       const doc = sec[layer];
       if (!doc) return;
-      add(out, meta, layer, 'intro', secHref, 'Opening', [doc.title].concat(doc.front, doc.intro));
+      add(out, meta, layer, 'title', secHref, 'Title', [doc.title]);
       doc.chapters.forEach(function (ch) {
-        const chHref = UI.href('read', [meta.id, ch.key]);
         const head = ch.implicit ? null : F.headingText(ch, layer === 'en' ? 'en' : 'he');
-        add(out, meta, layer, ch.key + ':intro', chHref, head || 'Chapter opening', [head].concat(ch.intro));
-        ch.laws.forEach(function (law) {
-          add(out, meta, layer, ch.key + ':' + law.n, UI.href('read', [meta.id, ch.key, String(law.n)]),
-            lawLabel(ch, law.n), [law.text].concat(law.extra));
-        });
+        add(out, meta, layer, ch.key + ':head', UI.href('read', [meta.id, ch.key]), head || 'Chapter', [head]);
+      });
+      /* Every law, and every paragraph outside them, is its own hit. */
+      F.units(doc).forEach(function (u) {
+        const k = u.key.split(':');
+        if (u.law) {
+          add(out, meta, layer, u.key, UI.href('read', [meta.id, k[0], k[1]]), lawLabel(u.ch, u.law.n),
+            [u.law.text].concat(u.law.extra));
+        } else {
+          const where = u.ch ? (u.ch.implicit ? 'Chapter' : F.headingText(u.ch, layer === 'en' ? 'en' : 'he')) : 'Opening';
+          add(out, meta, layer, u.key, UI.href('read', [meta.id, k[0], k[1]]), where + ' ¶' + u.n, [u.list[u.at]]);
+        }
       });
     });
 
@@ -143,7 +149,7 @@
           const key = F.noteKey(n);
           add(out, meta, layer, key || 'intro',
             key ? UI.href('read', [meta.id, String(n.c), String(n.h)]) : secHref,
-            key ? n.c + ':' + n.h + (n.h2 != null ? '–' + n.h2 : '') : 'Note',
+            key ? (F.paraNumber(key) != null ? F.unitName(key) : n.c + ':' + n.h + (n.h2 != null ? '–' + n.h2 : '')) : 'Note',
             [n.text].concat(n.more));
         });
       });
