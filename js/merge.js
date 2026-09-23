@@ -4,8 +4,9 @@
    Shared with the Node tests, like edit.js: pure functions over format.js's
    documents, hung on globalThis.MT.
 
-   THE UNIT IS THE LAW (text layers) or THE NOTE (notes layers), keyed as
-   everywhere else: "3:5" for a law, the label "3.5.1" for a note. Three
+   THE UNIT IS THE LAW (text layers: or a paragraph outside the laws, see
+   format.js units()) or THE NOTE (notes layers), keyed as everywhere else:
+   "3:5" for a law, "i:3" for a paragraph, the label "3.5.1" for a note. Three
    versions of a file are compared unit by unit:
 
      base    what the draft was an edit of (drafts.js keeps it)
@@ -57,10 +58,8 @@
     const m = new Map();
     if (!doc) return m;
     const text = !!F.textLang(layer);
-    for (const ch of doc.chapters) {
-      if (text) for (const law of ch.laws) m.set(ch.key + ':' + law.n, E.lawBody(law));
-      else for (const n of ch.notes) m.set(n.label, E.noteBody(n));
-    }
+    if (text) for (const u of F.units(doc)) m.set(u.key, E.unitBody(u));
+    else for (const ch of doc.chapters) for (const n of ch.notes) m.set(n.label, E.noteBody(n));
     return m;
   }
 
@@ -70,12 +69,9 @@
      file doesn't have). */
   function put(doc, layer, id, body, naming) {
     if (F.textLang(layer)) {
-      const hit = E.findLaw(doc, id);
+      const hit = E.findUnit(doc, id);
       if (!hit || body === null) return false;
-      const p = E.paragraphs(body);
-      hit.law.text = p[0] || '';
-      hit.law.extra = p.slice(1);
-      return true;
+      return !E.putUnit(hit, E.paragraphs(body));
     }
     const hit = E.findNote(doc, id);
     const p = body === null ? [] : E.paragraphs(body);
@@ -181,7 +177,7 @@
       for (const id of labels) {
         const n = F.parseNoteLabel(id);
         if (taken && n.c == null) return fileConflict('structure');
-        const to = taken ? E.nextNoteLabel(R, n.c, n.h) : id;
+        const to = taken ? E.nextNoteLabel(R, n.c + ':' + n.h) : id;
         if (!put(R, layer, to, at(o, id), O)) return fileConflict('structure');
         if (to !== id) relabeled.push({ from: id, to: to });
       }

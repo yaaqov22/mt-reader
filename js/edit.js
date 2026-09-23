@@ -4,14 +4,18 @@
    storage, so the Node tests exercise exactly what the app runs (it hangs
    itself on globalThis.MT like format.js).
 
-   THE UNITS OF EDITING are the ones the reader shows: a law's body in a text
-   layer (Hebrew, pointed Hebrew, English), and a note in a notes layer
-   (commentary, review notes). Headings, titles and intros are not edited
-   here; structure stays as the migration left it.
+   THE UNITS OF EDITING are the ones the reader shows: in a text layer
+   (Hebrew, pointed Hebrew, English) a law's body, or one paragraph outside
+   the laws — of a section's opening or a chapter's intro (format.js units());
+   in a notes layer (commentary, review notes) a note. Changes of either text
+   unit are reported with kind 'law'. Headings and titles are not edited
+   here, and a paragraph stays one paragraph, so structure stays as the
+   migration left it.
 
    A BODY is what the editor's textarea holds: the law's text without its
-   label, then its extra paragraphs, separated by blank lines; or a note's
-   text without its [^label]:, then its continuation paragraphs.
+   label, then its extra paragraphs, separated by blank lines; a paragraph
+   unit's one paragraph; or a note's text without its [^label]:, then its
+   continuation paragraphs.
 
    EVERY EDIT IS CHECKED BY ROUND TRIP. The edited document is written out,
    parsed back, and must come back identical. A paragraph that would be read
@@ -59,6 +63,22 @@
     return null;
   }
 
+  /* A text unit (a law or a paragraph, see format.js units()) by key. */
+  function findUnit(doc, key) {
+    return F.units(doc).find(u => u.key === key) || null;
+  }
+
+  const unitBody = u => (u.law ? lawBody(u.law) : u.list[u.at]);
+
+  /* Give a unit the paragraphs `p`, in place. → why it can't be, or null. */
+  function putUnit(u, p) {
+    if (u.law) { u.law.text = p[0] || ''; u.law.extra = p.slice(1); return null; }
+    if (!p.length) return 'A paragraph here can\'t be left empty.';
+    if (p.length > 1) return 'This is one paragraph, and has to stay one: take out the blank line.';
+    u.list[u.at] = p[0];
+    return null;
+  }
+
   function findNote(doc, label) {
     for (const ch of doc.chapters) {
       const i = ch.notes.findIndex(n => n.label === label);
@@ -68,17 +88,17 @@
   }
 
   /* Why a body would not survive the round trip, in words. */
-  function explain(paras, layer, ch) {
+  function explain(paras, layer, ch, para) {
     const lang = F.textLang(layer);
     for (let i = 0; i < paras.length; i++) {
       const p = paras[i];
       const first = p.split('\n')[0];
       const head = p.split('\n').find(l => /^#{1,6} /.test(l));
       if (head) return 'A line starting with "' + head.split(' ')[0] + ' " would become a heading.';
-      if (i === 0) continue;
+      if (i === 0 && !para) continue;
       if (lang) {
         const lab = F.parseLabel(p, lang);
-        if (lab && (lab.c != null || ch.n == null)) {
+        if (lab && (lab.c != null || !ch || ch.n == null)) {
           return 'The paragraph starting "' + first.slice(0, 24) + '" would be read as a law of its own. ' +
             'Reword its start, or join it to the paragraph before.';
         }
@@ -90,34 +110,55 @@
   }
 
   // Write, reparse, compare. → the file text, or throws an edit error.
-  function checked(doc, layer, paras, ch) {
+  function checked(doc, layer, paras, ch, para) {
     const text = F.write(doc, layer);
     const back = F.parse(text, layer);
-    if (strip(back) !== strip(doc) || F.write(back, layer) !== text) throw editError(explain(paras, layer, ch));
+    if (strip(back) !== strip(doc) || F.write(back, layer) !== text) throw editError(explain(paras, layer, ch, para));
     return text;
   }
 
   /* ------------------------------------------------------------- laws */
 
-  /* → { doc, text } with the law `key` ("3:5") given `body`. */
+  /* → { doc, text } with the unit `key` (a law "3:5", or a paragraph "i:3")
+     given `body`. */
   function setLaw(doc, layer, key, body) {
     const d = clone(doc);
-    const hit = findLaw(d, key);
-    if (!hit) throw editError('There is no law ' + key + ' in this file.');
+    const hit = findUnit(d, key);
+    if (!hit) throw editError('There is no ' + F.unitName(key) + ' in this file.');
     const p = paragraphs(body);
-    hit.law.text = p[0] || '';
-    hit.law.extra = p.slice(1);
-    return { doc: d, text: checked(d, layer, p, hit.ch) };
+    const why = putUnit(hit, p);
+    if (why) throw editError(why);
+    return { doc: d, text: checked(d, layer, p, hit.ch, !hit.law) };
   }
 
   /* ------------------------------------------------------------- notes */
 
-  function noteOrder(a, b) {
-    return (a.c - b.c) || (a.h - b.h) || ((a.i || 0) - (b.i || 0));
+  /* Notes sort by the unit they are on: the opening, then unnumbered runs of
+     laws, numbered chapters, unnumbered chapters; within a chapter its intro
+     paragraphs before its laws. */
+  function chapterRank(c) {
+    let m;
+    if (c === 'i') return [0, 0];
+    if ((m = /^0([a-z]?)$/.exec(c))) return [1, m[1] ? m[1].charCodeAt(0) - 96 : 0];
+    if (/^\d+$/.test(c)) return [2, +c];
+    if ((m = /^x(\d+)$/.exec(c))) return [3, +m[1]];
+    return [4, 0];
   }
 
-  /* The next free label for a note on law c:h — one past the highest in use. */
-  function nextNoteLabel(doc, c, h) {
+  function unitRank(h) {
+    const m = /^(i?)(\d+)$/.exec(h || '');
+    return m ? [m[1] ? 0 : 1, +m[2]] : [2, 0];
+  }
+
+  function noteOrder(a, b) {
+    const ca = chapterRank(a.c), cb = chapterRank(b.c), ua = unitRank(a.h), ub = unitRank(b.h);
+    return (ca[0] - cb[0]) || (ca[1] - cb[1]) || (ua[0] - ub[0]) || (ua[1] - ub[1]) || ((a.i || 0) - (b.i || 0));
+  }
+
+  /* The next free label for a note on unit `key` ("3:5", "i:2") — one past
+     the highest in use. */
+  function nextNoteLabel(doc, key) {
+    const [c, h] = key.split(':');
     let max = 0;
     if (doc) for (const ch of doc.chapters) for (const n of ch.notes) if (n.c === c && n.h === h) max = Math.max(max, n.i);
     return c + '.' + h + '.' + (max + 1);
@@ -129,9 +170,20 @@
     return { front: [], title: (en && en.title) || null, intro: [], chapters: [], warnings: [] };
   }
 
-  /* The chapter of a notes document that holds chapter c, made (named as the
-     English names it) and put in order if it isn't there. */
+  /* The chapter of a notes document that holds notes on chapter `c` (the
+     label's chapter, a string), made and put in order if it isn't there. A
+     numbered chapter's notes go under its heading, named as the English
+     names it; all others (the opening, unnumbered runs and chapters) in a
+     heading-less run before the first heading. */
   function notesChapter(doc, c, en) {
+    if (!/^[1-9]\d*$/.test(String(c))) {
+      let first = doc.chapters[0];
+      if (first && first.implicit) return first;
+      first = { key: '0', n: null, name: null, heading: null, implicit: true, intro: [], notes: [] };
+      doc.chapters.unshift(first);
+      return first;
+    }
+    c = +c;
     let ch = doc.chapters.find(x => x.n === c);
     if (ch) return ch;
     const enCh = en && en.chapters.find(x => x.n === c);
@@ -152,14 +204,15 @@
     return Object.assign({ label: label }, F.parseNoteLabel(label), { text: paras[0] || '', more: paras.slice(1) });
   }
 
-  /* → { doc, text, label } with a new note on law c:h. `doc` may be null (the
-     section has no file for this layer yet); `en` names its chapters. */
-  function addNote(doc, layer, c, h, body, en) {
+  /* → { doc, text, label } with a new note on unit `key` ("3:5", "i:2").
+     `doc` may be null (the section has no file for this layer yet); `en`
+     names its chapters. */
+  function addNote(doc, layer, key, body, en) {
     const d = doc ? clone(doc) : newNotesDoc(en);
     const p = paragraphs(body);
     if (!p.length) throw editError('The note is empty.');
-    const label = nextNoteLabel(d, c, h);
-    const ch = notesChapter(d, c, en);
+    const label = nextNoteLabel(d, key);
+    const ch = notesChapter(d, key.split(':')[0], en);
     placeNote(ch, makeNote(label, p));
     return { doc: d, text: checked(d, layer, p, ch), label: label };
   }
@@ -183,10 +236,8 @@
 
   /* ------------------------------------------------------------ changes */
 
-  function lawEntries(doc) {
-    const m = new Map();
-    if (doc) for (const ch of doc.chapters) for (const law of ch.laws) m.set(lawKeyOf(ch, law), { ch, law });
-    return m;
+  function unitEntries(doc) {
+    return new Map(F.units(doc).map(u => [u.key, unitBody(u)]));
   }
 
   function noteEntries(doc) {
@@ -204,13 +255,12 @@
   function changes(base, cur, layer) {
     const out = [];
     if (F.textLang(layer)) {
-      const a = lawEntries(base), b = lawEntries(cur);
-      for (const [key, e] of b) {
-        const before = a.has(key) ? lawBody(a.get(key).law) : null;
-        const after = lawBody(e.law);
+      const a = unitEntries(base), b = unitEntries(cur);
+      for (const [key, after] of b) {
+        const before = a.has(key) ? a.get(key) : null;
         if (before !== after) out.push({ kind: 'law', key: key, before: before, after: after });
       }
-      for (const [key, e] of a) if (!b.has(key)) out.push({ kind: 'law', key: key, before: lawBody(e.law), after: null });
+      for (const [key, before] of a) if (!b.has(key)) out.push({ kind: 'law', key: key, before: before, after: null });
     } else {
       const a = noteEntries(base), b = noteEntries(cur);
       const labels = Array.from(new Set(Array.from(a.keys()).concat(Array.from(b.keys()))));
@@ -229,8 +279,8 @@
   /* `cur` with one change (from changes()) put back as it is in `base`. */
   function revert(base, cur, layer, change) {
     if (change.kind === 'law') {
-      const was = findLaw(base, change.key);
-      return setLaw(cur, layer, change.key, was ? lawBody(was.law) : '');
+      const was = findUnit(base, change.key);
+      return setLaw(cur, layer, change.key, was ? unitBody(was) : '');
     }
     if (change.kind === 'note') {
       if (change.before === null) return setNote(cur, layer, change.label, '');
@@ -287,7 +337,7 @@
   }
 
   MT.edit = {
-    paragraphs, lawBody, noteBody, findLaw, findNote,
+    paragraphs, lawBody, noteBody, findLaw, findNote, findUnit, unitBody, putUnit,
     setLaw, addNote, setNote, nextNoteLabel, notesChapter, placeNote,
     changes, revert, diffWords,
   };

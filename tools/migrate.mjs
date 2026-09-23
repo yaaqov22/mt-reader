@@ -318,7 +318,7 @@ function buildIndex() {
     });
   }
   const front = books.find(b => b.id === '0');
-  if (front) { front.en = 'Front Matter'; front.he = 'הקדמה'; }
+  if (front) { front.en = 'Introduction'; front.he = 'הקדמה'; }
   return { format: 1, books };
 }
 

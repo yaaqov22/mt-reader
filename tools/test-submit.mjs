@@ -33,7 +33,7 @@ const CO = doc(
   '## Laws of Things, Chapter 2',
   '[^2.1.1]: *Only* - A note.',
 );
-const addNote = (text, c, h, body, layer = 'co') => E.addNote(text && F.parse(text, layer), layer, c, h, body, F.parse(EN, 'en')).text;
+const addNote = (text, c, h, body, layer = 'co') => E.addNote(text && F.parse(text, layer), layer, c + ':' + h, body, F.parse(EN, 'en')).text;
 const setNote = (text, label, body, layer = 'co') => E.setNote(F.parse(text, layer), layer, label, body).text;
 
 /* ---------- merge: laws ---------- */
@@ -51,6 +51,16 @@ test('edits to different laws of one file both land', () => {
   const m = merge(EN, ours, theirs, 'en');
   assert.deepEqual(m.conflicts, []);
   assert.equal(m.text, setLaw(setLaw(EN, '1:1', 'Mine.'), '2:1', 'Theirs.'));
+});
+
+test('paragraphs of an opening merge one by one, like laws', () => {
+  const OPEN = doc('*Verse.*', '# Book', 'One.', 'Two.');
+  const ours = setLaw(OPEN, 'i:2', 'Mine.');
+  const m = merge(OPEN, ours, setLaw(OPEN, 'i:3', 'Theirs.'), 'en');
+  assert.deepEqual(m.conflicts, []);
+  assert.equal(m.text, doc('*Verse.*', '# Book', 'Mine.', 'Theirs.'));
+  const clash = merge(OPEN, ours, setLaw(OPEN, 'i:2', 'Theirs.'), 'en');
+  assert.deepEqual(clash.conflicts.map(c => [c.id, c.ours, c.theirs]), [['law:i:2', 'Mine.', 'Theirs.']]);
 });
 
 test('the same law changed the same way is no conflict', () => {

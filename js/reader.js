@@ -1,35 +1,41 @@
-/* The reader: one chapter of one section, Hebrew | English | Commentary |
-   Review notes, one row per law.
+/* The reader: one chapter of one section, Hebrew and English side by side,
+   one row per law, with the commentary and review notes on it beneath.
 
    #/read/1-1/3     Laws of the Foundations of the Torah, chapter 3
    #/read/1-1/3/5   …scrolled to law 5 and highlighted
    #/read/1-1/3/5/q …and with the search q highlighted in it (a trailing /w
                     means whole words), which is where search results lead
+   #/read/1-0/i/3   paragraph 3 of a section's opening
+   #/read/0-4/x2/i4 paragraph 4 of an unnumbered chapter
 
-   ALIGNMENT IS STRUCTURAL. Every law is its own grid row, and the rows share
-   one column template, so a long Hebrew law and its shorter translation start
-   on the same line whatever their lengths. Nothing is measured. Rows come
-   from MT.lib, which merges the layers by law number, so a law missing on one
-   side (the untranslated part of 2-7) shows as an empty cell rather than
-   shifting everything after it.
+   THE ROWS ARE THE UNITS of format.js: every law, and every paragraph outside
+   the laws (a book's opening, a section's list of commandments, the front
+   matter's chapters), so each lines up with its translation, and each can be
+   edited and noted on its own.
 
-   Which columns show is a device setting, toggled in the chapter bar, and so
-   is niqqud: the ניקוד chip swaps the Hebrew column between Mechon Mamre's
-   plain and pointed editions (Hebrew/*-he.md and *-hen.md). Under 900px the
-   cells of a row stack instead (see the CSS), in the same order. The notes
-   column steps aside in a section with no review notes, except in edit mode.
+   ALIGNMENT IS STRUCTURAL. Every row's text shares one column template, so a
+   long Hebrew law and its shorter translation start on the same line
+   whatever their lengths. Nothing is measured. Rows pair the layers by key,
+   so a unit missing on one side (the untranslated part of 2-7) shows as an
+   empty cell rather than shifting everything after it.
+
+   Beneath the text come the unit's notes: commentary, then review notes,
+   each laid out in as many columns as fit. Which of the four layers show is
+   a device setting, toggled in the header's button group, and so is niqqud
+   (Hebrew/*-he.md or *-hen.md). A layer that is hidden still says, under
+   each unit, how many notes it has there; clicking that opens them for the
+   one unit. Under 900px Hebrew and English stack.
 
    REVIEWING. Reading a branch other than master (or its pull request's
-   base), what the branch changed is marked in blue, law by law and note by
-   note, with its diff (review.js); the "vs master" chip turns that off.
+   base), what the branch changed is marked in blue, unit by unit and note by
+   note, with its diff (review.js); the branch button turns that off.
 
-   EDITING. The Edit chip turns on edit mode, in which clicking a law's
-   Hebrew or English, or a note, opens it in place (editor.js), and each
-   commentary cell offers to add a note. Selecting a phrase in a law offers
-   the same in any mode, with the phrase quoted. Whichever Hebrew edition is
-   showing is the one edited. Edits are drafts on this device (drafts.js);
-   what they changed is marked where it stands, in green, with its diff and
-   an undo. */
+   EDITING. The pencil turns on edit mode, in which clicking a unit's Hebrew
+   or English, or a note, opens it in place (editor.js), and each unit's
+   notes offer to add one. Selecting a phrase in the text offers the same in
+   any mode, with the phrase quoted. Whichever Hebrew edition is showing is
+   the one edited. Edits are drafts on this device (drafts.js); what they
+   changed is marked where it stands, in green, with its diff and an undo. */
 
 (function (MT) {
   'use strict';
@@ -42,17 +48,9 @@
   let nav = null;   // { prev, next } hrefs for the keyboard
   let live = null;  // the rendered chapter's context, for the selection toolbar
 
-  const COLS = [
-    { key: 'he', label: 'עברית', title: 'Hebrew' },
-    { key: 'en', label: 'English', title: 'English' },
-    { key: 'co', label: 'Commentary', title: 'Commentary' },
-    { key: 'notes', label: 'Notes', title: 'Review notes' }
-  ];
-
-  /* Each column's share of the width, in the order above. */
-  const WIDTH = { he: '1fr', en: '1.15fr', co: '0.85fr', notes: '0.75fr' };
-
   const LAYER_NAME = { he: 'Hebrew', hen: 'pointed Hebrew', en: 'English', co: 'commentary', notes: 'review notes' };
+  const ANN = ['co', 'notes'];
+  const ANN_TITLE = { co: 'Commentary', notes: 'Review notes' };
 
   /* --------------------------------------------------------------- cells */
 
@@ -72,12 +70,21 @@
     return { text: p[0] || '', rest: p.slice(1) };
   }
 
-  function lawContent(lang, ch, law, href) {
-    const label = UI.el('a.label', { href: href, text: F.labelText(ch, law, lang).replace(/\*/g, '') });
-    const first = MT.md.para(law.text, lang === 'he' ? 'p.he' : 'p');
+  /* What a unit shows: its label (a law's number, a paragraph's ¶), its first
+     paragraph and any more. */
+  function unitView(lang, u) {
+    if (u.law) {
+      return { label: F.labelText(u.ch, u.law, lang).replace(/\*/g, ''), text: u.law.text, extra: u.law.extra };
+    }
+    return { label: '¶' + u.n, text: u.list[u.at], extra: [] };
+  }
+
+  function unitContent(lang, v, href) {
+    const label = UI.el('a.label', { href: href, text: v.label });
+    const first = MT.md.para(v.text, lang === 'he' ? 'p.he' : 'p');
     first.insertBefore(label, first.firstChild);
     first.insertBefore(document.createTextNode(' '), label.nextSibling);
-    return [first].concat(paras(law.extra, lang));
+    return [first].concat(paras(v.extra, lang));
   }
 
   /* A change of `layer` in a { layer: [change] } list (the drafts' or the
@@ -88,27 +95,32 @@
     }) || null;
   }
 
-  function lawCell(ctx, lang, ch, law, href) {
-    if (!law) return cell(lang, UI.el('p.missing', { text: lang === 'he' ? '' : 'Not yet translated.' }), 'empty');
+  /* One side of a unit: `u` from F.units, or null where this side lacks it. */
+  function unitCell(ctx, lang, u, key, href) {
+    if (!u) {
+      const law = F.paraNumber(key) == null;
+      return cell(lang, UI.el('p.missing', { text: lang === 'he' || !law ? '' : 'Not yet translated.' }), 'empty');
+    }
     const layer = lang === 'he' ? ctx.heLayer : 'en';
-    const key = ch.key + ':' + law.n;
     const change = findChange(ctx.changes, layer, 'law', key);
     const upstream = findChange(ctx.branch, layer, 'law', key);
-    const c = cell(lang, lawContent(lang, ch, law, href), change ? 'changed' : null);
+    const view = unitView(lang, u);
+    const c = cell(lang, unitContent(lang, view, href), change ? 'changed' : null);
     if (upstream) { c.classList.add('branched'); c.appendChild(branchBar(ctx, upstream, c)); }
     if (change) c.appendChild(changeBar(ctx, layer, change, c));
     if (ctx.editing) {
       c.classList.add('editable');
       c._edit = function () {
         lib.section(ctx.id).then(function (sec) {
-          const hit = E.findLaw(sec[layer], key);
+          const hit = E.findUnit(sec[layer], key);
           if (!hit) return;
           openEditor(c, {
-            lang: lang, body: E.lawBody(hit.law), label: 'Edit the ' + LAYER_NAME[layer] + ' of ' + key,
+            lang: lang, body: E.unitBody(hit), label: 'Edit the ' + LAYER_NAME[layer] + ' of ' + F.unitName(key),
+            hint: hit.law ? null : 'One paragraph',
             save: function (b) { return lib.edit(ctx.id, layer, function (doc) { return E.setLaw(doc, layer, key, b); }); },
             render: function (b) {
               const s = split(b);
-              return lawContent(lang, ch, { n: law.n, text: s.text, extra: s.rest }, href);
+              return unitContent(lang, { label: view.label, text: s.text, extra: s.rest }, href);
             }
           });
         });
@@ -172,21 +184,66 @@
     return el;
   }
 
-  /* The commentary or review notes on law c:h (key "c:h"): one cell per
-     layer, each column its own. */
-  function notesCell(ctx, layer, key, c, h) {
+  /* The commentary or review notes on unit `key`, as a block under the text:
+     a heading, then the notes in columns. `box._count` is how many there are
+     (for the row's marker), `box._changed` whether any is changed. */
+  function notesCell(ctx, layer, key) {
     const out = lib.notesFor(ctx.sec[layer], key).map(function (n) { return noteEl(ctx, n, layer); });
+    const count = out.length;
     const gone = function (ch) { return ch.kind === 'note' && ch.after === null && ch.key === key; };
     (ctx.branch[layer] || []).filter(gone).forEach(function (ch) { out.push(branchDeletedNote(ctx, ch, layer)); });
     (ctx.changes[layer] || []).filter(gone).forEach(function (ch) { out.push(deletedNote(ctx, ch, layer)); });
-    const box = cell(layer, out);
-    if (ctx.editing && c != null) {
+    const list = UI.el('div.notelist', out);
+    const box = cell(layer, [UI.el('div.annhead', { text: ANN_TITLE[layer] }), list],
+      out.length || ctx.editing ? null : 'none');
+    box._count = count;
+    box._changed = out.some(function (el) { return el.classList.contains('changed') || el.classList.contains('branched'); });
+    if (ctx.editing) {
       box.appendChild(UI.el('div.addnote', [UI.el('button.linkbtn', {
         type: 'button', text: layer === 'notes' ? '+ review note' : '+ commentary',
-        onclick: function () { newNote(ctx, box, layer, c, h, ''); }
+        onclick: function () { newNote(ctx, box, layer, key, ''); }
       })]));
     }
     return box;
+  }
+
+  /* Under a unit's text: how many notes each hidden layer has on it. It
+     opens them for this unit alone. applyCols() shows the parts for the
+     layers that are hidden, and hides the marker when that leaves nothing. */
+  function marker(row, boxes, editing) {
+    const part = function (layer, icon) {
+      const n = boxes[layer]._count;
+      return UI.el('span.mk-' + layer + (boxes[layer]._changed ? '.changed' : ''), { 'data-n': n },
+        [icon(), UI.el('span', { text: n ? String(n) : '+' })]);
+    };
+    const m = UI.el('button.annmark', {
+      type: 'button', 'aria-expanded': 'false',
+      onclick: function () {
+        const open = row.classList.toggle('open');
+        m.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+    }, [part('co', MT.icons.comment), part('notes', MT.icons.note)]);
+    m._counts = { co: boxes.co._count, notes: boxes.notes._count };
+    m._editing = editing;
+    return m;
+  }
+
+  function setMarker(m, cols) {
+    const label = [];
+    let any = false;
+    ANN.forEach(function (layer) {
+      const part = m.querySelector('.mk-' + layer);
+      const show = !cols[layer] && (m._counts[layer] > 0 || m._editing);
+      part.hidden = !show;
+      if (show) {
+        any = true;
+        const n = m._counts[layer];
+        label.push(n ? n + ' ' + (layer === 'co' ? (n === 1 ? 'comment' : 'comments') : (n === 1 ? 'review note' : 'review notes'))
+          : 'add ' + (layer === 'co' ? 'commentary' : 'a review note'));
+      }
+    });
+    m.hidden = !any;
+    m.title = label.join(', ');
   }
 
   /* ------------------------------------------------------------- editing */
@@ -210,23 +267,25 @@
     return '**' + (MT.device.get('name') || 'reviewer') + '** ' + today() + ' - ' + q;
   }
 
-  /* A new note on law c:h, typed into the commentary cell. It is added to the
+  /* A new note on unit `key`, typed into its notes block. It is added to the
      draft at the first save that has more than the prefix in it; emptied
      again (or back to the bare prefix), it is removed. */
-  function newNote(ctx, coCell, layer, c, h, phrase) {
+  function newNote(ctx, box, layer, key, phrase) {
     const prefix = notePrefix(layer, phrase);
     const wrap = UI.el('div.note.new.' + kindOf(layer));
-    coCell.insertBefore(wrap, coCell.querySelector('.addnote'));
+    box.classList.remove('none');
+    box.querySelector('.notelist').appendChild(wrap);
+    const on = F.unitName(key);
     let label = null;
     openEditor(wrap, {
-      body: prefix, label: 'New ' + LAYER_NAME[layer] + ' note on ' + c + ':' + h,
-      hint: 'New ' + (layer === 'notes' ? 'review note' : 'commentary') + ' on ' + c + ':' + h,
+      body: prefix, label: 'New ' + LAYER_NAME[layer] + ' note on ' + on,
+      hint: 'New ' + (layer === 'notes' ? 'review note' : 'commentary') + ' on ' + on,
       save: function (b) {
         const empty = !E.paragraphs(b).length || b.trim() === prefix.trim();
         if (!label) {
           if (empty) return Promise.resolve();
           return lib.edit(ctx.id, layer, function (doc, sec) {
-            const r = E.addNote(doc, layer, c, h, b, sec.en);
+            const r = E.addNote(doc, layer, key, b, sec.en);
             label = r.label;
             return r;
           });
@@ -241,7 +300,7 @@
     });
   }
 
-  /* "Edited · diff · undo" under a changed law or note. */
+  /* "Edited · diff · undo" under a changed unit or note. */
   function changeBar(ctx, layer, change, host) {
     const what = change.before === null ? 'Added' : change.after === null ? 'Deleted' : 'Edited';
     const bits = [UI.el('span.chg-what', { text: what + (ctx.raw.stale[layer] ? ' (the file has changed on the branch since)' : '') })];
@@ -267,7 +326,7 @@
     return UI.el('div.chg', bits);
   }
 
-  /* "Changed on this branch · diff" under a law or note the branch changed
+  /* "Changed on this branch · diff" under a unit or note the branch changed
      compared with its base. Nothing to undo here: it is the branch's text. */
   function branchBar(ctx, change, host) {
     const what = change.before === null ? 'Added' : change.after === null ? 'Deleted' : 'Changed';
@@ -292,7 +351,7 @@
 
   /* ----------------------------------------------------- selection toolbar */
 
-  /* Select a phrase in a law's Hebrew or English and this floats above it:
+  /* Select a phrase in a unit's Hebrew or English and this floats above it:
      add a commentary or review note quoting it. */
   let picked = null;   // { row, phrase }
   const seltools = UI.el('div.seltools', { role: 'toolbar', 'aria-label': 'Note on the selection' }, [
@@ -311,24 +370,16 @@
         hideSel();
         const s = window.getSelection();
         if (s) s.removeAllRanges();
-        /* The note goes in its column, so make sure that is showing. */
-        live.grid._notes = live.grid._notes || layer === 'notes';
-        if (!MT.device.get('cols')[layer]) {
-          const next = MT.device.get('cols');
-          next[layer] = true;
-          MT.device.set({ cols: next });
-          const chip = document.querySelector('.coltoggles [data-col="' + layer + '"]');
-          if (chip) chip.setAttribute('aria-pressed', 'true');
-        }
-        applyCols(live.grid);
-        newNote(live, row.querySelector('.cell.' + layer), layer, +row.getAttribute('data-c'), +row.getAttribute('data-n'), phrase);
+        /* The note goes under the unit, so open its notes if they're hidden. */
+        row.classList.add('open');
+        newNote(live, row.querySelector('.cell.' + layer), layer, row.getAttribute('data-key'), phrase);
       }
     });
   }
 
   function hideSel() { seltools.hidden = true; picked = null; }
 
-  /* The selection's text as read, without the law label or sub-number tags. */
+  /* The selection's text as read, without the label or sub-number tags. */
   function phraseOf(range) {
     const box = document.createElement('div');
     box.appendChild(range.cloneContents());
@@ -346,7 +397,7 @@
     if (node.nodeType !== 1) node = node.parentNode;
     const c = node && node.closest('.cell.he, .cell.en');
     const row = c && c.closest('.row.law');
-    if (!row || !row.getAttribute('data-c') || c.closest('.editor') || !live.grid.contains(row)) return hideSel();
+    if (!row || !row.getAttribute('data-key') || c.closest('.editor') || !live.grid.contains(row)) return hideSel();
     const phrase = phraseOf(range);
     if (!phrase) return hideSel();
     picked = { row: row, phrase: phrase };
@@ -360,13 +411,13 @@
   document.addEventListener('selectionchange', MT.debounce(checkSel, 200));
   MT.bus.on('route', function (r) { if (r.id !== 'read') hideSel(); });
 
-  /* Commentary material that isn't anchored to a law: its own intro, and any
-     unnumbered chapters of general remarks (1-4's "General Applicability"). */
+  /* Commentary material that isn't anchored to a unit: its own intro, and
+     any unnumbered chapters of general remarks (1-4's "General Applicability"). */
   function coGeneral(doc) {
     if (!doc) return [];
     const out = paras(doc.front).concat(paras(doc.intro));
     doc.chapters.forEach(function (ch) {
-      if (ch.n == null && !ch.implicit) {
+      if (ch.n == null && !ch.implicit && ch.intro.length) {
         out.push(UI.el('h3.co-head', { text: ch.heading }));
         out.push.apply(out, paras(ch.intro));
       }
@@ -382,35 +433,30 @@
 
   /* ---------------------------------------------------------------- head */
 
-  function colToggles(grid) {
+  /* Which layers show, niqqud, as one group of icon buttons. */
+  function viewGroup(grid, raw) {
     const cols = MT.device.get('cols');
-    return UI.el('div.coltoggles', { role: 'group', 'aria-label': 'Columns' }, COLS.map(function (c) {
-      const b = UI.el('button.chip', {
-        type: 'button', 'aria-pressed': cols[c.key] ? 'true' : 'false', 'data-col': c.key,
-        title: 'Show ' + c.title + (c.key === 'notes' && !grid._notes ? ' (there are none in this section)' : ''),
-        lang: c.key === 'he' ? 'he' : null, text: c.label,
+    const col = function (key, title, content, cls) {
+      const b = UI.el('button.seg' + (cls ? '.' + cls : ''), {
+        type: 'button', 'aria-pressed': cols[key] ? 'true' : 'false', 'data-col': key,
+        title: title, 'aria-label': title,
         onclick: function () {
           const next = MT.device.get('cols');
-          next[c.key] = !next[c.key];
-          if (!COLS.some(function (k) { return next[k.key]; })) return;   // never all off
+          next[key] = !next[key];
+          if (!next.he && !next.en) return;   // some text always shows
           MT.device.set({ cols: next });
-          b.setAttribute('aria-pressed', next[c.key] ? 'true' : 'false');
+          b.setAttribute('aria-pressed', next[key] ? 'true' : 'false');
           applyCols(grid);
         }
-      });
+      }, content);
       return b;
-    }));
-  }
-
-  /* Vowel points on or off. Disabled, with a reason, when this section has no
-     pointed file. */
-  function niqqudToggle(sec) {
+    };
     const on = !!MT.device.get('niqqud');
-    return UI.el('button.chip.niqqud', {
-      type: 'button', lang: 'he', text: 'נִקּוּד',
-      'aria-pressed': on && sec.hen ? 'true' : 'false',
-      disabled: !sec.hen,
-      title: sec.hen ? (on ? 'Hide vowel points' : 'Show vowel points') : 'No pointed text for this section',
+    const niqqud = UI.el('button.seg.glyph.he', {
+      type: 'button', lang: 'he', text: 'אָ',
+      'aria-pressed': on && raw.hen ? 'true' : 'false', disabled: !raw.hen,
+      'aria-label': 'Niqqud',
+      title: raw.hen ? (on ? 'Hide vowel points' : 'Show vowel points') : 'No pointed text for this section',
       onclick: function () {
         MT.editor.close().then(function () {
           MT.device.set({ niqqud: !MT.device.get('niqqud') });
@@ -418,20 +464,27 @@
         });
       }
     });
+    return UI.el('div.segs', { role: 'group', 'aria-label': 'Show' }, [
+      col('he', 'Hebrew', UI.el('span', { lang: 'he', text: 'א' }), 'glyph.he'),
+      niqqud,
+      col('en', 'English', 'A', 'glyph'),
+      col('co', 'Commentary', MT.icons.comment()),
+      col('notes', 'Review notes', MT.icons.note())
+    ]);
   }
 
   function editToggle() {
     const on = !!MT.device.get('editing');
-    return UI.el('button.chip.editchip', {
-      type: 'button', 'aria-pressed': on ? 'true' : 'false',
-      title: on ? 'Stop editing' : 'Edit: click a law or note to change it',
+    return UI.el('button.seg.editseg', {
+      type: 'button', 'aria-pressed': on ? 'true' : 'false', 'aria-label': 'Edit',
+      title: on ? 'Stop editing' : 'Edit: click a law, a paragraph or a note to change it',
       onclick: function () {
         MT.editor.close().then(function () {
           MT.device.set({ editing: !MT.device.get('editing') });
           UI.refresh();
         });
       }
-    }, [MT.icons.pencil(), 'Edit']);
+    }, [MT.icons.pencil()]);
   }
 
   /* Marking what the branch changed compared with its base, on or off. Only
@@ -440,8 +493,8 @@
     if (!MT.review.active()) return null;
     const on = !!MT.device.get('marks');
     const base = MT.device.get('baseBranch');
-    return UI.el('button.chip.markchip', {
-      type: 'button', 'aria-pressed': on ? 'true' : 'false', text: 'vs ' + base,
+    return UI.el('button.seg.markseg', {
+      type: 'button', 'aria-pressed': on ? 'true' : 'false', 'aria-label': 'Compare with ' + base,
       title: on ? 'Stop marking what this branch changed' : 'Mark what this branch changed compared with ' + base,
       onclick: function () {
         MT.editor.close().then(function () {
@@ -449,23 +502,22 @@
           UI.refresh();
         });
       }
-    });
+    }, [MT.icons.branch()]);
   }
 
-  /* The columns showing, as classes and the rows' shared template. The notes
-     column stays out of the way in a section with no review notes, unless
-     editing (where notes are added) — grid._notes says whether it has any. */
+  /* The layers showing, as classes on the grid: Hebrew and English share the
+     rows' column template; commentary and notes show beneath, or only as the
+     markers' counts. */
   function applyCols(grid) {
     const cols = MT.device.get('cols');
-    const on = COLS.filter(function (c) {
-      return cols[c.key] && (c.key !== 'notes' || grid._notes || grid.classList.contains('editing'));
-    }).map(function (c) { return c.key; });
-    if (!on.length) on.push('en');
+    const text = ['he', 'en'].filter(function (k) { return cols[k]; });
+    if (!text.length) text.push('en');
+    const show = text.concat(ANN.filter(function (k) { return cols[k]; }));
     grid.className = 'grid' + (grid.classList.contains('pointed') ? ' pointed' : '') +
       (grid.classList.contains('editing') ? ' editing' : '') +
-      ' cols-' + on.length + ' ' + on.map(function (k) { return 'show-' + k; }).join(' ');
-    grid.style.setProperty('--cols', on.length === 1 ? 'minmax(0, 760px)'
-      : on.map(function (k) { return WIDTH[k]; }).join(' '));
+      ' cols-' + text.length + ' ' + show.map(function (k) { return 'show-' + k; }).join(' ');
+    grid.style.setProperty('--cols', text.length === 1 ? 'minmax(0, 1fr)' : '1fr 1.15fr');
+    grid.querySelectorAll('.annmark').forEach(function (m) { setMarker(m, cols); });
   }
 
   /* Previous/next chapter, running on into the neighbouring section. */
@@ -521,7 +573,7 @@
     }
     if (ctx.editing) {
       out.push(UI.el('p.draftnote.hint', [
-        'Click a law or a note to edit it. Edits are saved on this device as you type. ',
+        'Click a law, a paragraph or a note to edit it. Edits are saved on this device as you type. ',
         MT.device.get('name') ? null : UI.el('a', { href: '#/settings', text: 'Set your name to sign review notes.' })
       ]));
     }
@@ -545,6 +597,52 @@
     ]);
   }
 
+  /* -------------------------------------------------------------- rows */
+
+  /* The units of each side that `pick` accepts, paired by key in order:
+     [{ key, he, en }]. */
+  function pairUnits(ctx, pick) {
+    const rows = new Map();
+    const order = function (u) { return u.law ? u.law.n : u.n; };
+    [['he', ctx.sec.he], ['en', ctx.sec.en]].forEach(function (side) {
+      F.units(side[1]).filter(pick).forEach(function (u) {
+        let r = rows.get(u.key);
+        if (!r) { r = { key: u.key, n: order(u), he: null, en: null }; rows.set(u.key, r); }
+        r[side[0]] = u;
+      });
+    });
+    return Array.from(rows.values()).sort(function (a, b) { return a.n - b.n; });
+  }
+
+  function unitHref(ctx, key) {
+    return UI.href('read', [ctx.id].concat(key.split(':')));
+  }
+
+  function unitRow(ctx, r) {
+    const href = unitHref(ctx, r.key);
+    const boxes = { co: notesCell(ctx, 'co', r.key), notes: notesCell(ctx, 'notes', r.key) };
+    const el = row('law' + (F.paraNumber(r.key) != null ? '.para' : ''), [], 'law-' + r.key.replace(':', '-'));
+    el.setAttribute('data-key', r.key);
+    UI.append(el, [
+      UI.el('div.text', [unitCell(ctx, 'he', r.he, r.key, href), unitCell(ctx, 'en', r.en, r.key, href)]),
+      marker(el, boxes, ctx.editing),
+      UI.el('div.ann', [boxes.co, boxes.notes])
+    ]);
+    return el;
+  }
+
+  /* Commentary that belongs to no unit, as a row of its own under a marker. */
+  function generalRow(blocks) {
+    if (!blocks.length) return null;
+    const el = row('general');
+    const box = cell('co', [UI.el('div.annhead', { text: 'Commentary: general remarks' })].concat(blocks));
+    box._count = 1;
+    const m = marker(el, { co: box, notes: { _count: 0 } }, false);
+    m.querySelector('.mk-co span').textContent = 'General remarks';
+    UI.append(el, [m, UI.el('div.ann', [box])]);
+    return el;
+  }
+
   /* -------------------------------------------------------------- render */
 
   /* up: what the branch changed here, or null — see the route below. */
@@ -564,66 +662,44 @@
       heLayer: sec.pointed ? 'hen' : 'he', changes: lib.changes(raw),
       branch: (up && up.changes) || {}, base: MT.device.get('baseBranch')
     };
-    grid._notes = !!(sec.notes || ctx.branch.notes || ctx.changes.notes);
-    applyCols(grid);
 
     const head = UI.el('header.rhead', [
-      UI.el('nav.crumbs', [
-        UI.el('a', { href: '#/books', text: 'Books' }), ' › ',
-        UI.el('a', { href: UI.href('books', [meta.book.id]), text: meta.book.en || 'Book ' + meta.book.id })
-      ]),
-      UI.el('div.titles', [
+      UI.el('div.rtitle', [
+        UI.el('nav.crumbs', [
+          UI.el('a', { href: '#/books', text: 'Books' }), ' › ',
+          UI.el('a', { href: UI.href('books', [meta.book.id]), text: meta.book.en || 'Book ' + meta.book.id }), ' ›'
+        ]),
         UI.el('h1', { text: (sec.en && sec.en.title) || meta.en || sec.id }),
         UI.el('h2', { lang: 'he', dir: 'rtl', text: (sec.he && sec.he.title) || meta.he || '' })
       ]),
       UI.el('div.rbar', [pager(ix, meta, sec, chapters, i, true, MT.review.chapters(ctx.branch)),
-        UI.el('div.toggles', [editToggle(), marksToggle(), niqqudToggle(raw), colToggles(grid)])]),
-      branchNote(ctx, up),
-      draftNote(ctx)
+        UI.el('div.toggles', [viewGroup(grid, raw), UI.el('div.segs', [editToggle(), marksToggle()])])])
     ]);
+    const notes = UI.el('div.rnotes', [branchNote(ctx, up), draftNote(ctx)]);
+    if (!sec.en) notes.appendChild(UI.note('This section has no English file yet.'));
 
-    /* The section's opening matter goes above its first chapter. */
+    /* The section's opening goes above its first chapter. */
     if (i === 0) {
-      const he = sec.he ? paras(sec.he.front, 'he').concat(paras(sec.he.intro, 'he')) : [];
-      const en = sec.en ? paras(sec.en.front).concat(paras(sec.en.intro)) : [];
-      const co = coGeneral(sec.co);
-      if (he.length || en.length || co.length) {
-        grid.appendChild(row('intro', [cell('he', he), cell('en', en), cell('co', co), cell('notes', null)]));
-      }
+      UI.append(grid, generalRow(coGeneral(sec.co)));
+      pairUnits(ctx, function (u) { return !u.ch; }).forEach(function (r) { grid.appendChild(unitRow(ctx, r)); });
     }
 
     if (cur) {
       const hasHeading = (cur.he && !cur.he.implicit) || (cur.en && !cur.en.implicit);
       if (hasHeading) {
-        grid.appendChild(row('chhead', [
+        grid.appendChild(row('chhead', [UI.el('div.text', [
           cell('he', cur.he && !cur.he.implicit ? UI.el('h3', { text: F.headingText(cur.he, 'he') }) : null),
-          cell('en', cur.en && !cur.en.implicit ? UI.el('h3', { text: F.headingText(cur.en, 'en') }) : null),
-          cell('co', null),
-          cell('notes', null)
-        ]));
+          cell('en', cur.en && !cur.en.implicit ? UI.el('h3', { text: F.headingText(cur.en, 'en') }) : null)
+        ])]));
       }
       const chN = (cur.en || cur.he).n;
-      const chIntroHe = cur.he ? paras(cur.he.intro, 'he') : [];
-      const chIntroEn = cur.en ? paras(cur.en.intro) : [];
-      const chIntroCo = chN != null ? coChapter(sec.co, chN) : [];
-      if (chIntroHe.length || chIntroEn.length || chIntroCo.length) {
-        grid.appendChild(row('intro', [cell('he', chIntroHe), cell('en', chIntroEn), cell('co', chIntroCo), cell('notes', null)]));
-      }
-
-      lib.laws(cur).forEach(function (l) {
-        const href = UI.href('read', [sec.id, key, String(l.n)]);
-        const r = row('law', [
-          lawCell(ctx, 'he', cur.he || cur.en, l.he, href),
-          lawCell(ctx, 'en', cur.en || cur.he, l.en, href),
-          notesCell(ctx, 'co', key + ':' + l.n, chN, l.n),
-          notesCell(ctx, 'notes', key + ':' + l.n, chN, l.n)
-        ], 'law-' + key + '-' + l.n);
-        /* Notes are labelled chapter.law.n, so only laws of numbered
-           chapters can have them. */
-        if (chN != null) { r.setAttribute('data-c', chN); r.setAttribute('data-n', l.n); }
-        grid.appendChild(r);
-      });
+      if (chN != null) UI.append(grid, generalRow(coChapter(sec.co, chN)));
+      const mine = function (u) { return u.ch && (u.ch === cur.he || u.ch === cur.en); };
+      pairUnits(ctx, function (u) { return mine(u) && !u.law; })
+        .concat(pairUnits(ctx, function (u) { return mine(u) && u.law; }))
+        .forEach(function (r) { grid.appendChild(unitRow(ctx, r)); });
     }
+    applyCols(grid);
 
     grid.addEventListener('click', function (e) {
       if (!ctx.editing) return;
@@ -634,16 +710,15 @@
       if (t && t._edit) t._edit();
     });
 
-    if (!sec.en) head.appendChild(UI.note('This section has no English file yet.'));
-
     nav = neighbours(ix, meta, chapters, i);
     live = ctx;
     hideSel();
-    UI.fill(host, [head, grid, UI.el('footer.rfoot', [pager(ix, meta, sec, chapters, i, false)])]);
+    UI.fill(host, [head, notes, grid, UI.el('footer.rfoot', [pager(ix, meta, sec, chapters, i, false)])]);
+    fitHead(head);
     document.title = ((sec.en && sec.en.title) || sec.id) + (cur && chapters.length > 1 ? ' · ' + lib.chapterName(cur) : '') + ' — MT Reader';
 
     if (args[2]) {
-      const target = document.getElementById('law-' + key + '-' + args[2]);
+      const target = document.getElementById('law-' + (args[1] === 'i' ? 'i' : key) + '-' + args[2]);
       if (target) {
         target.classList.add('target');
         if (args[3] && MT.search) MT.search.highlight(target, args[3], args[4] === 'w');
@@ -651,6 +726,15 @@
       }
     }
   }
+
+  /* The header sticks under the top bar; rows scrolled to must clear both. */
+  function fitHead(head) {
+    document.documentElement.style.setProperty('--rhead-h', head.offsetHeight + 'px');
+  }
+  window.addEventListener('resize', MT.debounce(function () {
+    const head = document.querySelector('#screen-read .rhead');
+    if (head) fitHead(head);
+  }, 150));
 
   function row(cls, cells, id) {
     const r = UI.el('div.row' + (cls ? '.' + cls : ''), cells);

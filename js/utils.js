@@ -53,9 +53,9 @@
     token: '',
     localBase: '../mishneh-torah-migration/',
     theme: 'system',
-    cols: { he: true, en: true, co: true, notes: true },
+    cols: { he: true, en: true, co: false, notes: false },
     marks: true,    // mark what the branch changed compared with baseBranch
-    niqqud: false,
+    niqqud: true,
     editing: false,
     name: '',       // signs review notes; filled from the token's login when checked
     login: '',      // the token's GitHub login, once known: names the submit branch
@@ -105,6 +105,8 @@
   };
 
   /* ------------------------------------------------------------- odds */
+
+  MT.cap = function (s) { return s.charAt(0).toUpperCase() + s.slice(1); };
 
   MT.debounce = function (fn, ms) {
     let t = 0;
