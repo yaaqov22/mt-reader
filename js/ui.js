@@ -146,14 +146,15 @@
 
   /* The top bar's breadcrumb: "Mishneh Torah", then `parts` ([{ text,
      href }], the last being where you are). A screen that has nowhere
-     deeper to say leaves just the root, which the router puts back. */
+     deeper to say leaves just the root, which the router puts back. The
+     root always links to the books, even from there. */
   UI.crumbs = function (parts) {
     const nav = document.getElementById('crumbs');
     if (!nav) return;
     const all = [{ text: 'Mishneh Torah', href: '#/books' }].concat(parts || []);
     UI.fill(nav, all.map(function (p, i) {
       const last = i === all.length - 1;
-      const bit = p.href && !last ? UI.el('a.crumb', { href: p.href, text: p.text })
+      const bit = p.href && (!last || !i) ? UI.el('a.crumb', { href: p.href, text: p.text, 'aria-current': last ? 'page' : null })
         : UI.el('span.crumb', { text: p.text, 'aria-current': last ? 'page' : null });
       return i ? [UI.el('span.sep', { 'aria-hidden': 'true', text: '›' }), bit] : bit;
     }));

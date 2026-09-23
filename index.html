@@ -16,14 +16,20 @@
 
 <header class="topbar">
   <nav id="crumbs" class="crumbs" aria-label="Where you are"><a class="crumb" href="#/books">Mishneh Torah</a></nav>
-  <!-- Which branch is being read, always visible: reading the wrong branch is
-       the one mistake that looks exactly like reading the right one.
-       It opens the branch switcher. -->
-  <a id="source-chip" class="chip source" href="#/branches"></a>
   <a id="search-btn" class="iconbtn" href="#/search" aria-label="Search" title="Search (/)"></a>
-  <a id="changes-btn" class="iconbtn" href="#/changes" aria-label="Changes" title="Changes on this device"><span class="badge" hidden></span></a>
   <a id="home-btn" class="iconbtn" href="#/books" aria-label="Books" title="Books"></a>
-  <button type="button" id="reload-btn" class="iconbtn" aria-label="Reload texts" title="Reload texts"></button>
+  <!-- GitHub: which branch is being read, what this device has changed, and
+       reloading the texts. The button carries the count of changed files,
+       and a blue ring when the branch isn't the base, so that reading the
+       wrong branch still shows at a glance. -->
+  <div class="ghmenu">
+    <button type="button" id="gh-btn" class="iconbtn" aria-haspopup="menu" aria-expanded="false" aria-controls="gh-menu" aria-label="GitHub"><span class="badge" hidden></span></button>
+    <div id="gh-menu" class="menu" role="menu" aria-label="GitHub" hidden>
+      <a id="menu-branch" role="menuitem" href="#/branches"></a>
+      <a id="menu-changes" role="menuitem" href="#/changes"></a>
+      <button type="button" id="menu-reload" role="menuitem"></button>
+    </div>
+  </div>
   <button type="button" id="settings-btn" class="iconbtn" aria-label="Settings" title="Settings"></button>
 </header>
 

@@ -185,6 +185,44 @@ a.crumb:hover { color: var(--accent); }
   text-align: center;
 }
 
+/* The GitHub menu. */
+.ghmenu { position: relative; }
+.iconbtn svg[viewBox="0 0 16 16"] { width: 19px; height: 19px; }
+.iconbtn.offbase { box-shadow: inset 0 0 0 2px var(--up); color: var(--up); }
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 230px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.menu > [role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.menu > [role="menuitem"]:hover, .menu > [role="menuitem"]:focus-visible { background: var(--panel-lit); outline: none; }
+.menu svg { width: 18px; height: 18px; flex: none; color: var(--dim); }
+.mi-label { flex: 1; }
+.mi-aside { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+#menu-changes .mi-aside:not(:empty) { padding: 0 6px; border-radius: 8px; background: var(--edit); color: var(--bg); font-family: var(--font-ui); font-weight: 700; }
+
 .chip {
   display: inline-flex;
   align-items: center;
@@ -199,9 +237,7 @@ a.crumb:hover { color: var(--accent); }
   cursor: pointer;
   white-space: nowrap;
 }
-.chip.source { max-width: 40vw; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
 .chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
-.chip.source.on { border-color: var(--accent); color: var(--text); }
 .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* ---------------------------------------------------------------- main */
