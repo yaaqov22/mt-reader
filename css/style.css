@@ -494,6 +494,30 @@ div.note.deleted p { text-decoration: line-through; opacity: 0.65; }
 .chitem .diff { font-family: var(--font); font-size: 15px; }
 .chitem .diff[lang="he"] { font-family: var(--font-he); font-size: 18px; }
 ul.plain { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+.chfile-pick { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.chfile-pick input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); }
+
+/* Submitting, conflicts, the last submission */
+.submit-msg { width: 100%; min-height: 110px; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 13.5px; line-height: 1.5; }
+.submit .linkbtn { align-self: flex-start; margin-top: 4px; font-size: 13px; }
+.submit .field-hint { margin: 8px 0 0; }
+.resolve { border-color: var(--bad); }
+.resolve-file { margin-top: 14px; }
+.resolve-item { padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.resolve-item h4 { font-size: 14px; margin: 0 0 8px; }
+.resolve-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 10px; }
+.resolve-label { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); margin-bottom: 4px; }
+.resolve-side .diff { font-family: var(--font); font-size: 15px; }
+.resolve-side .diff[lang="he"] { font-family: var(--font-he); font-size: 18px; }
+.resolve-area { width: 100%; resize: vertical; font-family: var(--font); font-size: 15px; line-height: 1.5; }
+.resolve-area[lang="he"] { font-family: var(--font-he); font-size: 18px; }
+.resolve-use { display: flex; gap: 14px; margin-top: 4px; font-size: 13px; }
+.resolve-item select { max-width: 100%; }
+.last-head { display: flex; align-items: baseline; justify-content: space-between; }
+.last p { margin: 0 0 6px; }
+@media (max-width: 700px) {
+  .resolve-sides { grid-template-columns: 1fr; }
+}
 
 /* -------------------------------------------------------------- search */
 

@@ -45,15 +45,16 @@
 
     const ghFields = UI.el('div.fields', [
       UI.el('div.row2', [UI.field('Owner', owner), UI.field('Repository', repo)]),
-      UI.field('Branch', branch, 'Until the format migration is merged, read the format-migration branch.'),
+      UI.field('Branch', branch, 'Usually master. To read a submitted pull request before it is merged, enter its branch.'),
       UI.field('Personal access token', token,
-        'A fine-grained token for this repository with Contents: read (M3 will also need write, and ' +
-        'Pull requests: write). It is stored only on this device.'),
+        'A fine-grained token for this repository. Reading needs Contents: read; submitting changes needs ' +
+        'Contents and Pull requests set to "Read and write". It is stored only on this device.'),
       UI.el('p.field-hint', [
         UI.el('a', { href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank',
           rel: 'noopener noreferrer', text: 'Create a token on GitHub' }),
         ' — choose "Only select repositories", pick ' + d.owner + '/' + d.repo +
-        ', and under Repository permissions set Contents to "Read-only". Then paste it above and Save.'
+        ', and under Repository permissions set Contents and Pull requests to "Read and write". ' +
+        'Then paste it above and Save.'
       ]),
       who
     ]);
@@ -72,14 +73,16 @@
     showFor(d.source);
 
     function save() {
-      MT.device.set({
+      const patch = {
         source: source.value,
         owner: owner.value.trim(),
         repo: repo.value.trim(),
         branch: branch.value.trim() || 'master',
         token: token.value.trim(),
         localBase: localBase.value.trim() || MT.device.defaults.localBase
-      });
+      };
+      if (patch.token !== d.token) patch.login = '';   // a new token may be someone else's
+      MT.device.set(patch);
       UI.toast('Saved.');
       render(host);
     }
@@ -87,10 +90,24 @@
     function checkToken() {
       who.textContent = 'Checking the token…';
       who.classList.remove('bad');
-      MT.github.user(token.value.trim()).then(function (u) {
+      const t = token.value.trim();
+      MT.github.user(t).then(function (u) {
         who.textContent = 'Token belongs to ' + u.login + (u.name ? ' (' + u.name + ')' : '') + '.';
+        if (t === MT.device.get('token')) MT.device.set({ login: u.login });
         /* The login is the natural signature for review notes. */
         if (!MT.device.get('name')) { MT.device.set({ name: u.login }); name.value = u.login; }
+        /* Whether the account may push. The token's own permissions can't be
+           read back; a token without write access shows when submitting. */
+        return MT.github.repo(t).then(function (r) {
+          const where = MT.device.get('owner') + '/' + MT.device.get('repo');
+          who.textContent += r.permissions && r.permissions.push
+            ? ' The account can push to ' + where + ', so it can submit changes (if the token has write access).'
+            : ' The account can read ' + where + ' but not push to it, so submitting will fail until the owner ' +
+              'adds it as a collaborator.';
+        }, function (e) {
+          who.textContent += ' ' + e.message;
+          who.classList.add('bad');
+        });
       }, function (e) {
         who.textContent = e.message;
         who.classList.add('bad');

@@ -55,7 +55,9 @@
     cols: { he: true, en: true, co: true },
     niqqud: false,
     editing: false,
-    name: ''        // signs review notes; filled from the token's login when checked
+    name: '',       // signs review notes; filled from the token's login when checked
+    login: '',      // the token's GitHub login, once known: names the submit branch
+    lastSubmit: null  // { number, url, branch, … } of the last pull request submitted to
   };
 
   let device = Object.assign({}, DEFAULTS, load('device.v1', {}));
