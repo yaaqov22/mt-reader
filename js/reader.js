@@ -1,5 +1,5 @@
-/* The reader: one chapter of one section, Hebrew | English | Commentary, one
-   row per law.
+/* The reader: one chapter of one section, Hebrew | English | Commentary |
+   Review notes, one row per law.
 
    #/read/1-1/3     Laws of the Foundations of the Torah, chapter 3
    #/read/1-1/3/5   …scrolled to law 5 and highlighted
@@ -16,14 +16,20 @@
    Which columns show is a device setting, toggled in the chapter bar, and so
    is niqqud: the ניקוד chip swaps the Hebrew column between Mechon Mamre's
    plain and pointed editions (Hebrew/*-he.md and *-hen.md). Under 900px the
-   cells of a row stack instead (see the CSS), in the same order.
+   cells of a row stack instead (see the CSS), in the same order. The notes
+   column steps aside in a section with no review notes, except in edit mode.
+
+   REVIEWING. Reading a branch other than master (or its pull request's
+   base), what the branch changed is marked in blue, law by law and note by
+   note, with its diff (review.js); the "vs master" chip turns that off.
 
    EDITING. The Edit chip turns on edit mode, in which clicking a law's
    Hebrew or English, or a note, opens it in place (editor.js), and each
    commentary cell offers to add a note. Selecting a phrase in a law offers
    the same in any mode, with the phrase quoted. Whichever Hebrew edition is
    showing is the one edited. Edits are drafts on this device (drafts.js);
-   what they changed is marked where it stands, with its diff and an undo. */
+   what they changed is marked where it stands, in green, with its diff and
+   an undo. */
 
 (function (MT) {
   'use strict';
@@ -39,8 +45,12 @@
   const COLS = [
     { key: 'he', label: 'עברית', title: 'Hebrew' },
     { key: 'en', label: 'English', title: 'English' },
-    { key: 'co', label: 'Commentary', title: 'Commentary' }
+    { key: 'co', label: 'Commentary', title: 'Commentary' },
+    { key: 'notes', label: 'Notes', title: 'Review notes' }
   ];
+
+  /* Each column's share of the width, in the order above. */
+  const WIDTH = { he: '1fr', en: '1.15fr', co: '0.85fr', notes: '0.75fr' };
 
   const LAYER_NAME = { he: 'Hebrew', hen: 'pointed Hebrew', en: 'English', co: 'commentary', notes: 'review notes' };
 
@@ -70,8 +80,10 @@
     return [first].concat(paras(law.extra, lang));
   }
 
-  function findChange(ctx, layer, kind, id) {
-    return (ctx.changes[layer] || []).find(function (c) {
+  /* A change of `layer` in a { layer: [change] } list (the drafts' or the
+     branch's). */
+  function findChange(changes, layer, kind, id) {
+    return (changes[layer] || []).find(function (c) {
       return c.kind === kind && (kind === 'law' ? c.key === id : c.label === id);
     }) || null;
   }
@@ -80,8 +92,10 @@
     if (!law) return cell(lang, UI.el('p.missing', { text: lang === 'he' ? '' : 'Not yet translated.' }), 'empty');
     const layer = lang === 'he' ? ctx.heLayer : 'en';
     const key = ch.key + ':' + law.n;
-    const change = findChange(ctx, layer, 'law', key);
+    const change = findChange(ctx.changes, layer, 'law', key);
+    const upstream = findChange(ctx.branch, layer, 'law', key);
     const c = cell(lang, lawContent(lang, ch, law, href), change ? 'changed' : null);
+    if (upstream) { c.classList.add('branched'); c.appendChild(branchBar(ctx, upstream, c)); }
     if (change) c.appendChild(changeBar(ctx, layer, change, c));
     if (ctx.editing) {
       c.classList.add('editable');
@@ -118,8 +132,10 @@
   const kindOf = function (layer) { return layer === 'notes' ? 'review' : 'co'; };
 
   function noteEl(ctx, n, layer) {
-    const change = findChange(ctx, layer, 'note', n.label);
-    const el = UI.el('div.note.' + kindOf(layer) + (change ? '.changed' : ''), noteContent(n));
+    const change = findChange(ctx.changes, layer, 'note', n.label);
+    const upstream = findChange(ctx.branch, layer, 'note', n.label);
+    const el = UI.el('div.note.' + kindOf(layer) + (change ? '.changed' : '') + (upstream ? '.branched' : ''), noteContent(n));
+    if (upstream) el.appendChild(branchBar(ctx, upstream, el));
     if (change) el.appendChild(changeBar(ctx, layer, change, el));
     if (ctx.editing) {
       el.classList.add('editable');
@@ -149,23 +165,28 @@
     return el;
   }
 
-  function notesCell(ctx, key, c, h) {
-    const sec = ctx.sec;
-    const out = [];
-    ['co', 'notes'].forEach(function (layer) {
-      lib.notesFor(sec[layer], key).forEach(function (n) { out.push(noteEl(ctx, n, layer)); });
-      (ctx.changes[layer] || []).forEach(function (ch) {
-        if (ch.kind === 'note' && ch.after === null && ch.key === key) out.push(deletedNote(ctx, ch, layer));
-      });
-    });
-    const co = cell('co', out);
+  /* A note the branch deleted, struck out where it stood. */
+  function branchDeletedNote(ctx, change, layer) {
+    const el = UI.el('div.note.deleted.branched.' + kindOf(layer), [MT.md.para(change.before.split('\n\n')[0], 'p')]);
+    el.appendChild(branchBar(ctx, change, el));
+    return el;
+  }
+
+  /* The commentary or review notes on law c:h (key "c:h"): one cell per
+     layer, each column its own. */
+  function notesCell(ctx, layer, key, c, h) {
+    const out = lib.notesFor(ctx.sec[layer], key).map(function (n) { return noteEl(ctx, n, layer); });
+    const gone = function (ch) { return ch.kind === 'note' && ch.after === null && ch.key === key; };
+    (ctx.branch[layer] || []).filter(gone).forEach(function (ch) { out.push(branchDeletedNote(ctx, ch, layer)); });
+    (ctx.changes[layer] || []).filter(gone).forEach(function (ch) { out.push(deletedNote(ctx, ch, layer)); });
+    const box = cell(layer, out);
     if (ctx.editing && c != null) {
-      const add = function (layer, text) {
-        return UI.el('button.linkbtn', { type: 'button', text: text, onclick: function () { newNote(ctx, co, layer, c, h, ''); } });
-      };
-      co.appendChild(UI.el('div.addnote', [add('co', '+ commentary'), add('notes', '+ review note')]));
+      box.appendChild(UI.el('div.addnote', [UI.el('button.linkbtn', {
+        type: 'button', text: layer === 'notes' ? '+ review note' : '+ commentary',
+        onclick: function () { newNote(ctx, box, layer, c, h, ''); }
+      })]));
     }
-    return co;
+    return box;
   }
 
   /* ------------------------------------------------------------- editing */
@@ -228,9 +249,10 @@
       bits.push(UI.el('button.linkbtn', {
         type: 'button', text: 'diff', title: 'Show what changed',
         onclick: function () {
-          const open = host.classList.toggle('showdiff');
-          const old = host.querySelector('.diff');
-          if (old) old.remove();
+          /* One diff open at a time: this one, or the branch's (branchBar). */
+          const open = !host.classList.contains('showdiff') || !host.querySelector('.diff:not(.up)');
+          host.querySelectorAll('.diff').forEach(function (d) { d.remove(); });
+          host.classList.toggle('showdiff', open);
           if (open) host.appendChild(MT.editor.diff(change.before, change.after));
         }
       }));
@@ -243,6 +265,29 @@
       }
     }));
     return UI.el('div.chg', bits);
+  }
+
+  /* "Changed on this branch · diff" under a law or note the branch changed
+     compared with its base. Nothing to undo here: it is the branch's text. */
+  function branchBar(ctx, change, host) {
+    const what = change.before === null ? 'Added' : change.after === null ? 'Deleted' : 'Changed';
+    const bits = [UI.el('span.chg-what', { text: what + ' on this branch', title: 'Compared with ' + ctx.base })];
+    if (change.before !== null && change.after !== null) {
+      bits.push(UI.el('button.linkbtn', {
+        type: 'button', text: 'diff', title: 'Show what changed since ' + ctx.base,
+        onclick: function () {
+          const open = !host.classList.contains('showdiff') || !host.querySelector('.diff.up');
+          host.querySelectorAll('.diff').forEach(function (d) { d.remove(); });
+          host.classList.toggle('showdiff', open);
+          if (open) {
+            const d = MT.editor.diff(change.before, change.after);
+            d.classList.add('up');
+            host.appendChild(d);
+          }
+        }
+      }));
+    }
+    return UI.el('div.chg.up', bits);
   }
 
   /* ----------------------------------------------------- selection toolbar */
@@ -266,13 +311,17 @@
         hideSel();
         const s = window.getSelection();
         if (s) s.removeAllRanges();
-        if (!MT.device.get('cols').co) {
-          MT.device.set({ cols: Object.assign({}, MT.device.get('cols'), { co: true }) });
-          applyCols(live.grid);
-          const chip = document.querySelector('.coltoggles [title="Show Commentary"]');
+        /* The note goes in its column, so make sure that is showing. */
+        live.grid._notes = live.grid._notes || layer === 'notes';
+        if (!MT.device.get('cols')[layer]) {
+          const next = MT.device.get('cols');
+          next[layer] = true;
+          MT.device.set({ cols: next });
+          const chip = document.querySelector('.coltoggles [data-col="' + layer + '"]');
           if (chip) chip.setAttribute('aria-pressed', 'true');
         }
-        newNote(live, row.querySelector('.cell.co'), layer, +row.getAttribute('data-c'), +row.getAttribute('data-n'), phrase);
+        applyCols(live.grid);
+        newNote(live, row.querySelector('.cell.' + layer), layer, +row.getAttribute('data-c'), +row.getAttribute('data-n'), phrase);
       }
     });
   }
@@ -334,15 +383,16 @@
   /* ---------------------------------------------------------------- head */
 
   function colToggles(grid) {
-    const cols = Object.assign({}, MT.device.get('cols'));
+    const cols = MT.device.get('cols');
     return UI.el('div.coltoggles', { role: 'group', 'aria-label': 'Columns' }, COLS.map(function (c) {
       const b = UI.el('button.chip', {
-        type: 'button', 'aria-pressed': cols[c.key] ? 'true' : 'false', title: 'Show ' + c.title,
+        type: 'button', 'aria-pressed': cols[c.key] ? 'true' : 'false', 'data-col': c.key,
+        title: 'Show ' + c.title + (c.key === 'notes' && !grid._notes ? ' (there are none in this section)' : ''),
         lang: c.key === 'he' ? 'he' : null, text: c.label,
         onclick: function () {
-          const next = Object.assign({}, MT.device.get('cols'));
+          const next = MT.device.get('cols');
           next[c.key] = !next[c.key];
-          if (!next.he && !next.en && !next.co) return;   // never all off
+          if (!COLS.some(function (k) { return next[k.key]; })) return;   // never all off
           MT.device.set({ cols: next });
           b.setAttribute('aria-pressed', next[c.key] ? 'true' : 'false');
           applyCols(grid);
@@ -384,12 +434,38 @@
     }, [MT.icons.pencil(), 'Edit']);
   }
 
+  /* Marking what the branch changed compared with its base, on or off. Only
+     there when reading a branch other than the base. */
+  function marksToggle() {
+    if (!MT.review.active()) return null;
+    const on = !!MT.device.get('marks');
+    const base = MT.device.get('baseBranch');
+    return UI.el('button.chip.markchip', {
+      type: 'button', 'aria-pressed': on ? 'true' : 'false', text: 'vs ' + base,
+      title: on ? 'Stop marking what this branch changed' : 'Mark what this branch changed compared with ' + base,
+      onclick: function () {
+        MT.editor.close().then(function () {
+          MT.device.set({ marks: !on });
+          UI.refresh();
+        });
+      }
+    });
+  }
+
+  /* The columns showing, as classes and the rows' shared template. The notes
+     column stays out of the way in a section with no review notes, unless
+     editing (where notes are added) — grid._notes says whether it has any. */
   function applyCols(grid) {
     const cols = MT.device.get('cols');
-    const on = COLS.filter(function (c) { return cols[c.key]; }).map(function (c) { return c.key; });
+    const on = COLS.filter(function (c) {
+      return cols[c.key] && (c.key !== 'notes' || grid._notes || grid.classList.contains('editing'));
+    }).map(function (c) { return c.key; });
+    if (!on.length) on.push('en');
     grid.className = 'grid' + (grid.classList.contains('pointed') ? ' pointed' : '') +
       (grid.classList.contains('editing') ? ' editing' : '') +
       ' cols-' + on.length + ' ' + on.map(function (k) { return 'show-' + k; }).join(' ');
+    grid.style.setProperty('--cols', on.length === 1 ? 'minmax(0, 760px)'
+      : on.map(function (k) { return WIDTH[k]; }).join(' '));
   }
 
   /* Previous/next chapter, running on into the neighbouring section. */
@@ -407,7 +483,8 @@
     };
   }
 
-  function pager(ix, meta, sec, chapters, i, withSelect) {
+  /* marked: keys of chapters with changes on the branch, flagged in the list. */
+  function pager(ix, meta, sec, chapters, i, withSelect, marked) {
     const n = neighbours(ix, meta, chapters, i);
     const link = function (href, icon, label) {
       return href
@@ -416,7 +493,9 @@
     };
     let select = null;
     if (withSelect && chapters.length > 1) {
-      select = UI.select(chapters.map(function (c) { return { value: c.key, label: lib.chapterName(c) }; }),
+      select = UI.select(chapters.map(function (c) {
+        return { value: c.key, label: lib.chapterName(c) + (marked && marked.has(c.key) ? ' • changed' : '') };
+      }),
         chapters[i].key, function () { UI.go('read', [sec.id, select.value]); });
       select.setAttribute('aria-label', 'Chapter');
       select.classList.add('chsel');
@@ -449,9 +528,27 @@
     return out;
   }
 
+  /* Which branch this is and what it changed here, when marking. */
+  function branchNote(ctx, up) {
+    if (!up) return null;
+    const all = UI.el('a', { href: '#/branches', text: 'Everything on the branch' });
+    if (up.error) return UI.el('p.draftnote.up.bad', ['Could not compare with ' + ctx.base + ': ' + up.error + ' ', all]);
+    /* Counted in the Hebrew edition showing, not both. */
+    const hidden = ctx.heLayer === 'he' ? 'hen' : 'he';
+    let n = 0;
+    Object.keys(ctx.branch).forEach(function (l) { if (l !== hidden) n += ctx.branch[l].length; });
+    return UI.el('p.draftnote.up', [
+      n ? n + (n === 1 ? ' change' : ' changes') + ' in this section compared with ' + ctx.base + ', marked in blue. '
+        : 'This branch changed nothing in this section compared with ' + ctx.base + '. ',
+      up.info && up.info.fromCache ? '(As last seen: GitHub could not be reached.) ' : null,
+      all
+    ]);
+  }
+
   /* -------------------------------------------------------------- render */
 
-  function render(host, ix, meta, raw, args) {
+  /* up: what the branch changed here, or null — see the route below. */
+  function render(host, ix, meta, raw, args, up) {
     const sec = lib.view(raw, MT.device.get('niqqud'));
     const chapters = lib.chapters(sec);
     let i = chapters.findIndex(function (c) { return c.key === args[1]; });
@@ -461,12 +558,14 @@
 
     const editing = !!MT.device.get('editing');
     const grid = UI.el('div.grid' + (sec.pointed ? '.pointed' : '') + (editing ? '.editing' : ''));
-    applyCols(grid);
 
     const ctx = {
       id: raw.id, sec: sec, raw: raw, grid: grid, editing: editing,
-      heLayer: sec.pointed ? 'hen' : 'he', changes: lib.changes(raw)
+      heLayer: sec.pointed ? 'hen' : 'he', changes: lib.changes(raw),
+      branch: (up && up.changes) || {}, base: MT.device.get('baseBranch')
     };
+    grid._notes = !!(sec.notes || ctx.branch.notes || ctx.changes.notes);
+    applyCols(grid);
 
     const head = UI.el('header.rhead', [
       UI.el('nav.crumbs', [
@@ -477,8 +576,9 @@
         UI.el('h1', { text: (sec.en && sec.en.title) || meta.en || sec.id }),
         UI.el('h2', { lang: 'he', dir: 'rtl', text: (sec.he && sec.he.title) || meta.he || '' })
       ]),
-      UI.el('div.rbar', [pager(ix, meta, sec, chapters, i, true),
-        UI.el('div.toggles', [editToggle(), niqqudToggle(raw), colToggles(grid)])]),
+      UI.el('div.rbar', [pager(ix, meta, sec, chapters, i, true, MT.review.chapters(ctx.branch)),
+        UI.el('div.toggles', [editToggle(), marksToggle(), niqqudToggle(raw), colToggles(grid)])]),
+      branchNote(ctx, up),
       draftNote(ctx)
     ]);
 
@@ -488,7 +588,7 @@
       const en = sec.en ? paras(sec.en.front).concat(paras(sec.en.intro)) : [];
       const co = coGeneral(sec.co);
       if (he.length || en.length || co.length) {
-        grid.appendChild(row('intro', [cell('he', he), cell('en', en), cell('co', co)]));
+        grid.appendChild(row('intro', [cell('he', he), cell('en', en), cell('co', co), cell('notes', null)]));
       }
     }
 
@@ -498,7 +598,8 @@
         grid.appendChild(row('chhead', [
           cell('he', cur.he && !cur.he.implicit ? UI.el('h3', { text: F.headingText(cur.he, 'he') }) : null),
           cell('en', cur.en && !cur.en.implicit ? UI.el('h3', { text: F.headingText(cur.en, 'en') }) : null),
-          cell('co', null)
+          cell('co', null),
+          cell('notes', null)
         ]));
       }
       const chN = (cur.en || cur.he).n;
@@ -506,7 +607,7 @@
       const chIntroEn = cur.en ? paras(cur.en.intro) : [];
       const chIntroCo = chN != null ? coChapter(sec.co, chN) : [];
       if (chIntroHe.length || chIntroEn.length || chIntroCo.length) {
-        grid.appendChild(row('intro', [cell('he', chIntroHe), cell('en', chIntroEn), cell('co', chIntroCo)]));
+        grid.appendChild(row('intro', [cell('he', chIntroHe), cell('en', chIntroEn), cell('co', chIntroCo), cell('notes', null)]));
       }
 
       lib.laws(cur).forEach(function (l) {
@@ -514,7 +615,8 @@
         const r = row('law', [
           lawCell(ctx, 'he', cur.he || cur.en, l.he, href),
           lawCell(ctx, 'en', cur.en || cur.he, l.en, href),
-          notesCell(ctx, key + ':' + l.n, chN, l.n)
+          notesCell(ctx, 'co', key + ':' + l.n, chN, l.n),
+          notesCell(ctx, 'notes', key + ':' + l.n, chN, l.n)
         ], 'law-' + key + '-' + l.n);
         /* Notes are labelled chapter.law.n, so only laws of numbered
            chapters can have them. */
@@ -571,7 +673,17 @@
         if (mine !== seq) return;
         const meta = r[0].byId.get(id);
         if (!meta) { UI.fill(host, UI.message('There is no section ' + id + '.', UI.el('a.btn', { href: '#/books', text: 'Books' }))); return; }
-        render(host, r[0], meta, r[1], args);
+        /* What the branch changed, when reading one and marking it. A
+           comparison that fails is said once, above the text, and the
+           text is shown all the same. */
+        if (!MT.review.active() || !MT.device.get('marks')) return render(host, r[0], meta, r[1], args, null);
+        return Promise.all([MT.review.info(), MT.review.section(r[1])]).then(function (x) {
+          return { info: x[0], changes: x[1] };
+        }, function (e) {
+          return { error: e.message, changes: {} };
+        }).then(function (up) {
+          if (mine === seq) render(host, r[0], meta, r[1], args, up);
+        });
       }, function (e) {
         if (mine !== seq) return;
         host.removeAttribute('data-sec');

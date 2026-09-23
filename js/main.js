@@ -48,10 +48,11 @@
     const chip = document.getElementById('source-chip');
     const paint = function () {
       chip.textContent = MT.device.get('source') === 'local' ? 'local' : MT.device.get('branch');
-      chip.title = 'Reading ' + MT.source.label();
+      chip.title = 'Reading ' + MT.source.label() + ' — choose a branch';
     };
     paint();
     MT.bus.on('device', paint);
+    MT.bus.on('route', function (r) { chip.classList.toggle('on', r.id === 'branches'); });
   }
 
   function boot() {
@@ -61,6 +62,7 @@
     /* Anything that changes what the texts are repaints the open screen —
        except Settings itself, which repaints on its own terms. */
     MT.bus.on('source', function () { if (UI.current().id !== 'settings') UI.refresh(); });
+    MT.bus.on('review', function () { if (UI.current().id !== 'settings') UI.refresh(); });
 
     UI.startRouter();
     registerWorker();

@@ -119,6 +119,40 @@
     /* One file's text by blob SHA. */
     blob: function (sha) { return request(repoPath() + '/git/blobs/' + sha, { raw: true }); },
 
+    /* ------------------------------------------------ reviewing (review.js) */
+
+    /* The branches, first 300 by name: [{ name, commit: { sha } }]. */
+    branches: function () {
+      const page = function (n) { return request(repoPath() + '/branches?per_page=100&page=' + n); };
+      return page(1).then(function (a) {
+        if (a.length < 100) return a;
+        return Promise.all([page(2), page(3)]).then(function (r) { return a.concat(r[0], r[1]); });
+      });
+    },
+
+    /* Open pull requests, most recently updated first:
+       [{ number, title, html_url, user: { login }, updated_at, draft,
+          head: { ref, sha, repo }, base: { ref } }] */
+    pulls: function () {
+      return request(repoPath() + '/pulls?state=open&sort=updated&direction=desc&per_page=100');
+    },
+
+    /* How commit `head` differs from commit `base`, taken from their merge
+       base as a pull request's diff is (commit SHAs, so branch names never
+       need escaping). → { mergeBase, ahead, behind, files: [{ path, status,
+       was }] } — `was` is the old path of a renamed file. GitHub lists at
+       most 300 files. */
+    compare: function (base, head) {
+      return request(repoPath() + '/compare/' + base + '...' + head + '?per_page=100').then(function (c) {
+        return {
+          mergeBase: c.merge_base_commit.sha, ahead: c.ahead_by, behind: c.behind_by,
+          files: (c.files || []).map(function (f) {
+            return { path: f.filename, status: f.status, was: f.previous_filename || null };
+          })
+        };
+      });
+    },
+
     /* ------------------------------------------------ writing (submit.js) */
 
     /* The repository: default_branch, and permissions.push for the token's
