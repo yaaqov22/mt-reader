@@ -64,7 +64,7 @@ No build step. Serve the folder over HTTP and open `index.html`.
 
 ← and → move between chapters; / opens search.
 
-**Editing.** The *Edit* chip in the chapter bar turns on edit mode: click a
+**Editing.** The pencil button in the chapter bar turns on edit mode: click a
 law's Hebrew or English, or a note, to edit it in place, and use *+
 commentary* / *+ review note* under any law. Selecting a phrase in a law (in
 either mode) offers *Comment* and *Review note* with the phrase quoted and the
@@ -98,7 +98,7 @@ note whose number someone else took meanwhile is renumbered, not flagged.
 Submitted drafts are removed, and the pull request is linked at the top of the
 screen.
 
-**Reviewing** (GitHub source only). The branch chip in the top bar opens
+**Reviewing** (GitHub source only). *Branch* in the top bar's GitHub menu opens
 the Branches screen: the open pull requests and every branch, each with
 *Read*. Reading a pull request's branch compares it with the pull request's
 base, any other branch with master (*Compared with* changes it). The
@@ -107,7 +107,7 @@ request diff is, so work merged into master since doesn't show as undone
 (`js/review.js`; three API calls per branch per session, kept for offline).
 What the branch changed is listed on that screen law by law with diffs, the
 sections it touched are tagged in the contents, and in the reader each
-changed law or note has a blue rule with *diff* (the *vs master* chip turns
+changed law or note has a blue rule with *diff* (the branch button turns
 the marks off; changed chapters are flagged in the chapter list). Your own
 drafts are still green, on top. Drafts belong to the branch they were made
 on, so switching never mixes them. Review notes have their own column
@@ -165,7 +165,7 @@ the header of [js/format.js](js/format.js). A file is canonical exactly when
 edits produce minimal diffs. `Original/*.htm` (Mechon Mamre) and `Original/niqqud/*n.htm` (their pointed
 edition) stay as the archival sources. The two Hebrew editions line up law
 for law, but the pointed one uses defective spelling, so neither can be
-derived from the other. The reader switches between them with the נִקּוּד chip.
+derived from the other. The reader switches between them with the אָ button.
 
 ## Tools
 
