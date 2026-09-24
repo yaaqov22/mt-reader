@@ -185,8 +185,8 @@ a.crumb:hover { color: var(--accent); }
   text-align: center;
 }
 
-/* The GitHub menu. */
-.ghmenu { position: relative; }
+/* The top bar's menus: Bookmarks and GitHub. */
+.menuwrap { position: relative; }
 .iconbtn svg[viewBox="0 0 16 16"] { width: 19px; height: 19px; }
 .iconbtn.offbase { box-shadow: inset 0 0 0 2px var(--up); color: var(--up); }
 .menu {
@@ -221,6 +221,29 @@ a.crumb:hover { color: var(--accent); }
 .menu svg { width: 18px; height: 18px; flex: none; color: var(--dim); }
 .mi-label { flex: 1; }
 .mi-aside { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+/* Bookmarks: the section's name over the law and date, and a remove
+   button that stays out of the way until the row is pointed at. */
+.bmmenu { min-width: 280px; max-width: min(360px, calc(100vw - 24px)); }
+.menu-sep { height: 1px; margin: 5px 4px; background: var(--line-soft); }
+.menu-empty { margin: 6px 10px; max-width: 250px; color: var(--dim); font-family: var(--font-ui); font-size: 13px; line-height: 1.45; }
+.bm-item { display: flex; align-items: center; border-radius: 6px; }
+.bm-item:hover, .bm-item:focus-within { background: var(--panel-lit); }
+.bm-item.cur .bm-title { color: var(--accent); }
+.bm-link { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; padding: 7px 10px; color: var(--text); font-family: var(--font-ui); font-size: 14px; text-decoration: none; }
+.bm-link:focus-visible { outline: none; }
+.bm-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bm-sub { color: var(--dim); font-size: 12.5px; }
+.bm-x { flex: none; width: 30px; height: 30px; margin-right: 4px; border: 0; border-radius: 50%; background: none; color: var(--faint); font-size: 18px; line-height: 1; cursor: pointer; opacity: 0; }
+.bm-item:hover .bm-x, .bm-x:focus-visible { opacity: 1; }
+.bm-x:hover { color: var(--bad); background: var(--panel); }
+.bm-x:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: none) { .bm-x { opacity: 1; } }
+/* Phones: the menus hang from the top bar's right edge, not their button. */
+@media (max-width: 480px) {
+  .menuwrap { position: static; }
+  .menu { right: 8px; top: calc(100% + 4px); }
+}
+.iconbtn.has svg path { fill: currentColor; fill-opacity: 0.18; }
 #menu-changes .mi-aside:not(:empty) { padding: 0 6px; border-radius: 8px; background: var(--edit); color: var(--bg); font-family: var(--font-ui); font-weight: 700; }
 
 .chip {
@@ -385,6 +408,35 @@ a.crumb:hover { color: var(--accent); }
 
 .row.law { scroll-margin-top: calc(var(--topbar-h) + var(--rhead-h, 90px) + 12px); }
 .row.law.target { background: var(--target); border-radius: var(--radius-sm); }
+
+/* The bookmark ribbon, in a margin of its own at the row's right: shown on
+   hover (always, faintly, on touch screens) and kept once set. */
+.grid .row.law { position: relative; padding-right: 34px; }
+.bmk {
+  position: absolute;
+  top: 10px;
+  right: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  opacity: 0;
+}
+.bmk svg { width: 18px; height: 18px; }
+.row.law:hover .bmk, .bmk:focus-visible { opacity: 1; }
+.bmk:hover { color: var(--accent); background: var(--panel-lit); }
+.bmk:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.bmk[aria-pressed="true"] { opacity: 1; color: var(--accent); }
+.bmk[aria-pressed="true"] svg path { fill: currentColor; }
+.row.law.marked { box-shadow: inset -3px 0 0 var(--accent-soft); }
+@media (hover: none) { .bmk { opacity: 0.45; } }
 .row.chhead h3 { font-size: 19px; color: var(--dim); }
 .row.chhead .cell.he h3 { font-family: var(--font-he); font-size: 21px; }
 .row.general { padding-top: 6px; padding-bottom: 6px; }

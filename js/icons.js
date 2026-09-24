@@ -68,6 +68,9 @@
       node.setAttribute('stroke', 'none');
       return node;
     },
+    bookmark: function () {
+      return svg('<path d="M6.5 3.5h11v17l-5.5-4.5-5.5 4.5z"/>');
+    },
     prev: function () { return svg('<path d="m14.5 6-6 6 6 6"/>'); },
     next: function () { return svg('<path d="m9.5 6 6 6-6 6"/>'); }
   };
