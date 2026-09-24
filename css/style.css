@@ -409,13 +409,18 @@ a.crumb:hover { color: var(--accent); }
 .row.law { scroll-margin-top: calc(var(--topbar-h) + var(--rhead-h, 90px) + 12px); }
 .row.law.target { background: var(--target); border-radius: var(--radius-sm); }
 
-/* The bookmark ribbon, in a margin of its own at the row's right: shown on
-   hover (always, faintly, on touch screens) and kept once set. */
-.grid .row.law { position: relative; padding-right: 34px; }
+/* A unit's right margin: its note counts (reader.js marker()), then the
+   bookmark ribbon, shown on hover (always, faintly, on touch screens) and
+   kept once set. A column of the row's own, beside both the text and the
+   notes beneath it, so a short row grows to hold it rather than overlap. */
+.grid .row.law { display: grid; grid-template-columns: minmax(0, 1fr) 30px; column-gap: 6px; }
+.row.law > .text { grid-column: 1; grid-row: 1; }
+.row.law > .ann { grid-column: 1; grid-row: 2; }
+.row.chhead, .row.general { padding-right: 42px; }   /* 6px + the margin, so they line up */
+.rmargin { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.rmargin .annmark { flex-direction: column; align-items: center; gap: 7px; width: 30px; margin: 0; padding: 5px 0; border-radius: var(--radius-sm); }
+.rmargin .annmark > span { flex-direction: column; gap: 2px; font-size: 11px; line-height: 1; }
 .bmk {
-  position: absolute;
-  top: 10px;
-  right: 2px;
   display: flex;
   align-items: center;
   justify-content: center;

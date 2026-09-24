@@ -115,7 +115,8 @@ on, so switching never mixes them. Review notes have their own column
 mode.
 
 **Bookmarks** mark where a work session stopped. Each law or paragraph has a
-ribbon in its right margin (shown on hover, kept once set), and *Bookmark*
+ribbon in its right margin (shown on hover, kept once set; the counts of any
+hidden commentary and review notes sit above it), and *Bookmark*
 sits beside *Comment* when text is selected. The Bookmarks button in the top
 bar lists them, newest first, with *Bookmark here* for the law at the top of
 the screen and a remove button on each. They are kept on this device only
