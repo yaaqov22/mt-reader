@@ -22,9 +22,10 @@
    Beneath the text come the unit's notes: commentary, then review notes,
    each laid out in as many columns as fit. Which of the four layers show is
    a device setting, toggled in the header's button group, and so is niqqud
-   (Hebrew/*-he.md or *-hen.md). A layer that is hidden still says, under
+   (Hebrew/*-he.md or *-hen.md). A layer that is hidden still says, beside
    each unit, how many notes it has there; clicking that opens them for the
-   one unit. Under 900px Hebrew and English stack.
+   one unit; these counts sit in the unit's right margin, above its
+   bookmark ribbon. Under 900px Hebrew and English stack.
 
    REVIEWING. Reading a branch other than master (or its pull request's
    base), what the branch changed is marked in blue, unit by unit and note by
@@ -210,8 +211,8 @@
     return box;
   }
 
-  /* Under a unit's text: how many notes each hidden layer has on it. It
-     opens them for this unit alone. applyCols() shows the parts for the
+  /* In a unit's right margin (under a general row's text): how many notes
+     each hidden layer has on it. It opens them for this unit alone. applyCols() shows the parts for the
      layers that are hidden, and hides the marker when that leaves nothing. */
   function marker(row, boxes, editing) {
     const part = function (layer, icon) {
@@ -247,6 +248,7 @@
     });
     m.hidden = !any;
     m.title = label.join(', ');
+    m.setAttribute('aria-label', m.title);
   }
 
   /* ------------------------------------------------------------- editing */
@@ -631,7 +633,8 @@
     return UI.href('read', [ctx.id].concat(key.split(':')));
   }
 
-  /* The ribbon in a unit's margin: shows on hover, and stays once set. */
+  /* The ribbon in a unit's margin, under its note counts: shows on hover,
+     and stays once set. */
   function bookmarkBtn(ctx, key) {
     const b = UI.el('button.bmk', {
       type: 'button',
@@ -653,7 +656,7 @@
   MT.bus.on('bookmarks', function () {
     if (!live) return;
     live.grid.querySelectorAll('.row.law').forEach(function (r) {
-      const b = r.querySelector(':scope > .bmk');
+      const b = r.querySelector('.rmargin > .bmk');
       if (b) paintBookmark(b, live.id, r.getAttribute('data-key'));
     });
   });
@@ -663,11 +666,10 @@
     const boxes = { co: notesCell(ctx, 'co', r.key), notes: notesCell(ctx, 'notes', r.key) };
     const el = row('law' + (F.paraNumber(r.key) != null ? '.para' : ''), [], 'law-' + r.key.replace(':', '-'));
     el.setAttribute('data-key', r.key);
-    el.appendChild(bookmarkBtn(ctx, r.key));
     el.classList.toggle('marked', MT.bookmarks.has(ctx.id, r.key));
     UI.append(el, [
       UI.el('div.text', [unitCell(ctx, 'he', r.he, r.key, href), unitCell(ctx, 'en', r.en, r.key, href)]),
-      marker(el, boxes, ctx.editing),
+      UI.el('div.rmargin', [marker(el, boxes, ctx.editing), bookmarkBtn(ctx, r.key)]),
       UI.el('div.ann', [boxes.co, boxes.notes])
     ]);
     return el;
