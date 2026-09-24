@@ -35,7 +35,10 @@
    notes offer to add one. Selecting a phrase in the text offers the same in
    any mode, with the phrase quoted. Whichever Hebrew edition is showing is
    the one edited. Edits are drafts on this device (drafts.js); what they
-   changed is marked where it stands, in green, with its diff and an undo. */
+   changed is marked where it stands, in green, with its diff and an undo.
+
+   BOOKMARKS. Each unit has a ribbon in its right margin, shown on hover and
+   kept once set (bookmarks.js); the selection toolbar offers it too. */
 
 (function (MT) {
   'use strict';
@@ -355,7 +358,17 @@
      add a commentary or review note quoting it. */
   let picked = null;   // { row, phrase }
   const seltools = UI.el('div.seltools', { role: 'toolbar', 'aria-label': 'Note on the selection' }, [
-    selBtn('co', 'Comment'), selBtn('notes', 'Review note')
+    selBtn('co', 'Comment'), selBtn('notes', 'Review note'), UI.el('button', {
+      type: 'button', text: 'Bookmark',
+      onmousedown: function (e) { e.preventDefault(); },
+      onclick: function () {
+        if (!picked || !live) return;
+        const key = picked.row.getAttribute('data-key');
+        hideSel();
+        MT.bookmarks.add(live.id, key, live.title);
+        UI.toast('Bookmarked ' + F.unitName(key) + '.');
+      }
+    })
   ]);
   seltools.hidden = true;
   document.body.appendChild(seltools);
@@ -618,11 +631,40 @@
     return UI.href('read', [ctx.id].concat(key.split(':')));
   }
 
+  /* The ribbon in a unit's margin: shows on hover, and stays once set. */
+  function bookmarkBtn(ctx, key) {
+    const b = UI.el('button.bmk', {
+      type: 'button',
+      onclick: function () { MT.bookmarks.toggle(ctx.id, key, ctx.title); }
+    }, [MT.icons.bookmark()]);
+    paintBookmark(b, ctx.id, key);
+    return b;
+  }
+
+  function paintBookmark(b, sec, key) {
+    const on = MT.bookmarks.has(sec, key);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.title = (on ? 'Remove the bookmark on ' : 'Bookmark ') + F.unitName(key);
+    b.setAttribute('aria-label', b.title);
+    const r = b.closest('.row');
+    if (r) r.classList.toggle('marked', on);
+  }
+
+  MT.bus.on('bookmarks', function () {
+    if (!live) return;
+    live.grid.querySelectorAll('.row.law').forEach(function (r) {
+      const b = r.querySelector(':scope > .bmk');
+      if (b) paintBookmark(b, live.id, r.getAttribute('data-key'));
+    });
+  });
+
   function unitRow(ctx, r) {
     const href = unitHref(ctx, r.key);
     const boxes = { co: notesCell(ctx, 'co', r.key), notes: notesCell(ctx, 'notes', r.key) };
     const el = row('law' + (F.paraNumber(r.key) != null ? '.para' : ''), [], 'law-' + r.key.replace(':', '-'));
     el.setAttribute('data-key', r.key);
+    el.appendChild(bookmarkBtn(ctx, r.key));
+    el.classList.toggle('marked', MT.bookmarks.has(ctx.id, r.key));
     UI.append(el, [
       UI.el('div.text', [unitCell(ctx, 'he', r.he, r.key, href), unitCell(ctx, 'en', r.en, r.key, href)]),
       marker(el, boxes, ctx.editing),
@@ -666,7 +708,7 @@
     /* Where this is, in the top bar. A book's opening shares the book's
        name, so it isn't said twice. */
     const bookName = meta.book.en || 'Book ' + meta.book.id;
-    const title = (sec.en && sec.en.title) || meta.en || sec.id;
+    const title = ctx.title = (sec.en && sec.en.title) || meta.en || sec.id;
     const crumbs = [{ text: bookName, href: UI.href('books', [meta.book.id]) }];
     if (title !== bookName) crumbs.push({ text: title });
 
@@ -735,6 +777,19 @@
     const head = document.querySelector('#screen-read .rhead');
     if (head) fitHead(head);
   }, 150));
+
+  /* The unit at the top of the screen, for the Bookmarks menu's "Bookmark
+     here": the first row not scrolled up under the headers. */
+  MT.reader = {
+    here: function () {
+      if (UI.current().id !== 'read' || !live || !document.body.contains(live.grid)) return null;
+      const head = live.grid.parentNode.querySelector('.rhead');
+      const top = document.querySelector('.topbar').offsetHeight + (head ? head.offsetHeight : 0);
+      const rows = Array.from(live.grid.querySelectorAll('.row.law'));
+      const r = rows.find(function (el) { return el.getBoundingClientRect().bottom > top + 24; }) || rows[0];
+      return r ? { sec: live.id, key: r.getAttribute('data-key'), title: live.title } : null;
+    }
+  };
 
   function row(cls, cells, id) {
     const r = UI.el('div.row' + (cls ? '.' + cls : ''), cells);

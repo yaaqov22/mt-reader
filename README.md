@@ -114,6 +114,13 @@ on, so switching never mixes them. Review notes have their own column
 (*Notes*), which steps aside in sections that have none, except in edit
 mode.
 
+**Bookmarks** mark where a work session stopped. Each law or paragraph has a
+ribbon in its right margin (shown on hover, kept once set), and *Bookmark*
+sits beside *Comment* when text is selected. The Bookmarks button in the top
+bar lists them, newest first, with *Bookmark here* for the law at the top of
+the screen and a remove button on each. They are kept on this device only
+(localStorage), not submitted.
+
 **Search** loads every section once per session (from the offline cache when
 it can; on GitHub the first search downloads the texts, after which they are
 kept) and scans it in memory: about 1.3 s to prepare, ~50 ms a query. All words
@@ -140,6 +147,7 @@ Plain scripts on a global `MT` namespace, loaded in dependency order by
 | `drafts.js` | local edits, one whole file per draft, in IndexedDB |
 | `review.js` | what the branch being read changed compared with its base, law by law |
 | `library.js` | index and parsed sections, merged law by law, drafts applied; `lib.edit` |
+| `bookmarks.js` | bookmarked laws, on this device (localStorage) |
 | `editor.js` | the in-place textarea editor, autosaving |
 | `books.js`, `reader.js`, `search.js`, `changes.js`, `branches.js`, `settings.js` | the screens (search.js also holds the search engine) |
 | `main.js` | boot, top bar, service worker |
