@@ -142,7 +142,7 @@
       const sent = (r.paths || []).concat(r.same);
       if (r.status === 'done') {
         MT.device.set({ lastSubmit: {
-          number: r.pr.number, url: r.pr.url, created: r.pr.created, branch: r.branch,
+          number: r.pr.number, url: r.pr.url, created: r.pr.created, branch: r.branch, base: r.pr.base,
           files: r.paths.length, at: Date.now(), relabeled: r.relabeled
         } });
       }
@@ -311,6 +311,20 @@
     const s = MT.device.get('lastSubmit');
     if (!s) return null;
     const reading = MT.device.get('branch') === s.branch;
+    if (s.merged) {
+      return UI.el('section.card.last', [
+        UI.el('div.last-head', [
+          UI.el('h2', { text: 'Merged' }),
+          UI.el('button.linkbtn', {
+            type: 'button', text: 'hide',
+            onclick: function () { MT.device.set({ lastSubmit: null }); rerender(); }
+          })
+        ]),
+        UI.el('p', [outLink(s.url, 'Pull request #' + s.number), ' was merged into ', UI.el('code', { text: s.into }),
+          ' on ' + when(s.merged) + '. Everyone reading ' + s.into + ' sees it on their next refresh (↻).'])
+      ]);
+    }
+    const status = UI.el('p.status');
     return UI.el('section.card.last', [
       UI.el('div.last-head', [
         UI.el('h2', { text: 'Submitted' }),
@@ -329,7 +343,10 @@
           ']: someone else had added a note with that number.');
       })) : null,
       reading ? null : UI.note('Until the pull request is merged, ' + MT.device.get('branch') + ' reads without these ' +
-        'changes. To read them, choose branch ' + s.branch + ' in Settings.')
+        'changes. To read them, choose branch ' + s.branch + ' in Settings.'),
+      UI.el('div.actions', [MT.branches.mergeButton({ number: s.number, head: s.branch, base: s.base || MT.device.get('branch') },
+        status, 'Merge #' + s.number + ' into ' + (s.base || MT.device.get('branch')))]),
+      status
     ]);
   }
 

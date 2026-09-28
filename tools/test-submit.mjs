@@ -187,9 +187,16 @@ function fakeGitHub(files) {
   for (const p of Object.keys(files)) t0[p] = blobSha(files[p]);
   branches.set('master', commitOf(treeOf(t0), null, 'initial'));
 
+  const shape = pr => Object.assign(pr, {
+    head: { ref: pr.head, repo: { full_name: 'x/y' }, get sha() { return branches.get(this.ref); } },
+    base: { ref: pr.base }
+  });
+  const settings = { push: true, squash: undefined, squashRefused: false };
+
   const G = {
     user: async () => (calls.push('user'), { login: 'jacob' }),
-    repo: async () => ({ default_branch: 'master' }),
+    repo: async () => ({ full_name: 'x/y', default_branch: 'master', permissions: { push: settings.push },
+      allow_squash_merge: settings.squash }),
     head: async b => (calls.push('head ' + b), branches.get(b) || null),
     treeAt: async c => {
       const tree = trees.get(commits.get(c).tree);
@@ -215,13 +222,37 @@ function fakeGitHub(files) {
       if (!c) throw Object.assign(new Error('not a fast forward'), { code: 'invalid' });
       branches.set(b, sha);
     },
-    openPull: async b => pulls.find(p => p.head === b && p.state === 'open') || null,
+    openPull: async b => pulls.find(p => p.head.ref === b && p.state === 'open') || null,
     createPull: async pr => {
       calls.push('pull');
-      const p = Object.assign({ number: pulls.length + 1, html_url: 'https://github.com/x/y/pull/' + (pulls.length + 1), state: 'open' }, pr);
+      const p = shape(Object.assign({ number: pulls.length + 1, html_url: 'https://github.com/x/y/pull/' + (pulls.length + 1),
+        state: 'open', merged: false, mergeable: true }, pr));
       pulls.push(p);
       return p;
     },
+    pulls: async () => pulls.filter(p => p.state === 'open'),
+    pull: async n => {
+      calls.push('get #' + n);
+      const p = pulls[n - 1];
+      const out = Object.assign({}, p, { head: Object.assign({}, p.head, { sha: p.head.sha }) });
+      if (p.mergeableAfter) { p.mergeableAfter--; out.mergeable = null; }
+      return out;
+    },
+    // A squash or a merge commit: the head's tree on the base, which the
+    // tests keep still, so the two agree.
+    mergePull: async (n, sha, method) => {
+      calls.push('merge #' + n + ' ' + method);
+      const p = pulls[n - 1];
+      if (method === 'squash' && (settings.squash === false || settings.squashRefused)) {
+        throw Object.assign(new Error('Squash merges are not allowed'), { code: 'notallowed' });
+      }
+      if (sha !== p.head.sha) throw Object.assign(new Error('head moved'), { code: 'moved' });
+      const tree = commits.get(p.head.sha).tree;
+      branches.set(p.base.ref, commitOf(tree, branches.get(p.base.ref), p.title + ' (#' + n + ')'));
+      Object.assign(p, { state: 'closed', merged: true, merge_commit_sha: branches.get(p.base.ref) });
+      return { sha: branches.get(p.base.ref), merged: true };
+    },
+    deleteBranch: async b => { calls.push('delete ' + b); branches.delete(b); return null; },
     // Test helpers.
     _push(b, changes) {
       const head = branches.get(b);
@@ -231,7 +262,7 @@ function fakeGitHub(files) {
     },
     _file(b, p) { const s = trees.get(commits.get(branches.get(b)).tree)[p]; return s ? blobs.get(s) : null; },
     _sha(b, p) { return trees.get(commits.get(branches.get(b)).tree)[p] || null; },
-    branches, pulls, calls, commits,
+    branches, _pulls: pulls, calls, commits, settings,
   };
   MT.github = G;
   MT.source = { blob: async s => blobs.get(s) };
@@ -258,14 +289,14 @@ test('the first submission of the day makes the branch and a pull request into t
   assert.equal(r.status, 'done');
   assert.equal(r.branch, 'jacob/20260922');
   assert.equal(r.fresh, true);
-  assert.deepEqual(r.pr, { number: 1, url: 'https://github.com/x/y/pull/1', created: true });
+  assert.deepEqual(r.pr, { number: 1, url: 'https://github.com/x/y/pull/1', created: true, base: 'master' });
   assert.deepEqual(r.paths.sort(), [NO_P, EN_P]);
   assert.equal(G._file('jacob/20260922', EN_P), setLaw(EN, '1:1', 'Mine.'));
   assert.equal(G._file('jacob/20260922', NO_P), drafts[1].text);
   assert.equal(G._file('jacob/20260922', CO_P), CO, 'untouched files carried over');
   assert.equal(G._file('master', EN_P), EN, 'master untouched');
-  const pr = G.pulls[0];
-  assert.deepEqual([pr.title, pr.head, pr.base], ['Edit Foundations of the Torah (1-1)', 'jacob/20260922', 'master']);
+  const pr = G._pulls[0];
+  assert.deepEqual([pr.title, pr.head.ref, pr.base.ref], ['Edit Foundations of the Torah (1-1)', 'jacob/20260922', 'master']);
   assert.equal(pr.body, 'English 1-1: law 1:1\nReview notes 1-1: note 1.1.1 (new)\n\nSubmitted with MT Reader.');
   assert.equal(G.commits.get(r.commit).message, msg.trim() + '\n');
   assert.ok(steps.length >= 4);
@@ -279,7 +310,7 @@ test('a later submission adds a commit to the day\'s branch and keeps its pull r
   assert.equal(r.status, 'done');
   assert.equal(r.fresh, false);
   assert.equal(r.pr.created, false);
-  assert.equal(G.pulls.length, 1);
+  assert.equal(G._pulls.length, 1);
   assert.equal(G._file('jacob/20260922', EN_P), setLaw(setLaw(EN, '1:1', 'Mine.'), '2:1', 'Later.'));
 });
 
@@ -328,6 +359,101 @@ test('a missing message or selection is refused before anything is sent', async 
   await assert.rejects(MT.submit.run({ drafts: [draft(G, EN_P, 'en', setLaw(EN, '1:1', 'x'))], message: '  ' }), e => e.code === 'message');
   await assert.rejects(MT.submit.run({ drafts: [], message: 'm' }), e => e.code === 'empty');
   assert.deepEqual(G.calls, []);
+});
+
+/* ---------- merging a pull request ---------- */
+
+const noWait = async () => {};
+const B = 'jacob/20260922';
+
+async function submitted(G, law = '1:1', body = 'Mine.') {
+  return MT.submit.run({ drafts: [draft(G, EN_P, 'en', setLaw(G._file('master', EN_P), law, body))], message: 'Edit', now: NOW });
+}
+
+test('merging squashes the pull request into master and deletes the day\'s branch', async () => {
+  const G = fakeGitHub({ [EN_P]: EN });
+  await submitted(G);
+  const steps = [];
+  const r = await MT.submit.land({ number: 1, onStep: s => steps.push(s), wait: noWait });
+  assert.deepEqual([r.status, r.method, r.branch, r.base, r.deleted], ['merged', 'squash', B, 'master', true]);
+  assert.equal(r.sha, G.branches.get('master'));
+  assert.equal(G._file('master', EN_P), setLaw(EN, '1:1', 'Mine.'));
+  assert.ok(!G.branches.has(B));
+  assert.ok(G._pulls[0].merged);
+  assert.ok(steps.length >= 3);
+});
+
+test('a submission later the same day, after merging, starts a new branch and pull request from master', async () => {
+  const G = fakeGitHub({ [EN_P]: EN });
+  await submitted(G);
+  await MT.submit.land({ number: 1, wait: noWait });
+  const r = await submitted(G, '2:1', 'Later.');
+  assert.deepEqual([r.status, r.fresh, r.pr.number, r.pr.created], ['done', true, 2, true]);
+  assert.equal(G._file(B, EN_P), setLaw(setLaw(EN, '1:1', 'Mine.'), '2:1', 'Later.'));
+  assert.equal(G.commits.get(G.branches.get(B)).parent, G.branches.get('master'), 'the new branch grows from master');
+});
+
+test('a repository that doesn\'t allow squashing gets a merge commit', async () => {
+  const G = fakeGitHub({ [EN_P]: EN });
+  await submitted(G);
+  G.settings.squash = false;
+  assert.equal((await MT.submit.land({ number: 1, wait: noWait })).method, 'merge');
+  assert.ok(!G.calls.includes('merge #1 squash'), 'not even tried');
+
+  const G2 = fakeGitHub({ [EN_P]: EN });
+  await submitted(G2);
+  G2.settings.squashRefused = true;   // the setting unseen: refused on trying
+  assert.equal((await MT.submit.land({ number: 1, wait: noWait })).method, 'merge');
+  assert.equal(G2._file('master', EN_P), setLaw(EN, '1:1', 'Mine.'));
+});
+
+test('an account that can\'t push is refused before anything is merged', async () => {
+  const G = fakeGitHub({ [EN_P]: EN });
+  await submitted(G);
+  G.settings.push = false;
+  await assert.rejects(MT.submit.land({ number: 1, wait: noWait }), e => e.code === 'permission');
+  assert.ok(!G.calls.some(c => c.startsWith('merge')));
+  assert.equal(G._file('master', EN_P), EN);
+});
+
+test('while GitHub is still checking, it asks again; a conflicting one is refused', async () => {
+  const G = fakeGitHub({ [EN_P]: EN });
+  await submitted(G);
+  G._pulls[0].mergeableAfter = 2;
+  const waits = [];
+  const r = await MT.submit.land({ number: 1, wait: async ms => waits.push(ms) });
+  assert.equal(r.status, 'merged');
+  assert.equal(waits.length, 2);
+
+  const G2 = fakeGitHub({ [EN_P]: EN });
+  await submitted(G2);
+  G2._pulls[0].mergeable = false;
+  await assert.rejects(MT.submit.land({ number: 1, wait: noWait }), e => e.code === 'conflicts');
+  assert.equal(G2._file('master', EN_P), EN);
+});
+
+test('merging is pinned to the head just read', async () => {
+  const G = fakeGitHub({ [EN_P]: EN });
+  await submitted(G);
+  const pull = G.pull;
+  G.pull = async n => { const p = await pull(n); G._push(B, { [EN_P]: 'pushed meanwhile\n' }); return p; };
+  await assert.rejects(MT.submit.land({ number: 1, wait: noWait }), e => e.code === 'moved');
+  assert.equal(G._file('master', EN_P), EN);
+});
+
+test('one already merged is reported; a branch another pull request is based on is kept', async () => {
+  const G = fakeGitHub({ [EN_P]: EN });
+  await submitted(G);
+  await MT.submit.land({ number: 1, wait: noWait });
+  const again = await MT.submit.land({ number: 1, wait: noWait });
+  assert.deepEqual([again.status, again.deleted], ['already', false]);
+
+  const G2 = fakeGitHub({ [EN_P]: EN });
+  await submitted(G2);
+  await G2.createPull({ title: 'Stacked', head: 'other', base: B });
+  const r = await MT.submit.land({ number: 1, wait: noWait });
+  assert.deepEqual([r.status, r.deleted], ['merged', false]);
+  assert.ok(G2.branches.has(B));
 });
 
 test('branchFor pads the date', () => {

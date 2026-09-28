@@ -98,6 +98,21 @@ note whose number someone else took meanwhile is renumbered, not flagged.
 Submitted drafts are removed, and the pull request is linked at the top of the
 screen.
 
+**Merging** (accounts that can push to the repository; the button isn't
+shown to anyone else). *Merge* is on the Submitted card on the Changes
+screen, beside each open pull request on the Branches screen, and under
+"What … changes" while reading a pull request's branch. It asks first, then
+(`MT.submit.land`) squashes the pull request into its base, pinned to the head
+commit just read so nothing pushed meanwhile goes in unseen (a merge commit
+if the repository doesn't allow squashing), and deletes the branch: a later
+submission the same day then starts a fresh branch and pull request from
+master rather than adding to the merged one. A branch another open pull
+request is based on is kept. A pull request that conflicts with its base, or
+that branch protection holds back, is refused with GitHub's reason. If the
+branch being read was the one merged, the reader goes back to its base, and
+drafts made on it move there too. Everyone reading master from GitHub gets
+the merged text on their next refresh.
+
 **Reviewing** (GitHub source only). *Branch* in the top bar's GitHub menu opens
 the Branches screen: the open pull requests and every branch, each with
 *Read*. Reading a pull request's branch compares it with the pull request's
@@ -140,7 +155,7 @@ Plain scripts on a global `MT` namespace, loaded in dependency order by
 | `format.js` | parser/writer for the text files; shared with the Node tools |
 | `edit.js` | edits to parsed documents (laws, notes), change lists, word diff; shared with the Node tools |
 | `merge.js` | per-law three-way merge of a draft with the file as it now is; shared with the Node tools |
-| `submit.js` | submitting: branch, merge, commit, pull request (no DOM; tested against a fake GitHub) |
+| `submit.js` | submitting: branch, merge, commit, pull request; and merging a pull request (no DOM; tested against a fake GitHub) |
 | `icons.js`, `ui.js`, `markdown.js` | inline SVG icons, DOM helper and hash router, inline Markdown to DOM (never `innerHTML`) |
 | `store.js` | IndexedDB (`blobs` by SHA, `kv`, `drafts`) |
 | `github.js` | GitHub REST client: reading, and the Git Data and pull request calls |
@@ -186,7 +201,7 @@ NODE="/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Microsoft/
 "$NODE" tools/migrate.mjs            # → out/migrated/ + out/migrated/REPORT.md
 "$NODE" tools/test-format.mjs        # unit tests + corpus checks on out/migrated
 "$NODE" tools/test-edit.mjs          # editing tests + a re-save check over the corpus (~30 s)
-"$NODE" tools/test-submit.mjs        # merge tests + the submit flow against a fake GitHub
+"$NODE" tools/test-submit.mjs        # merge tests + submitting and merging against a fake GitHub
 ```
 
 The pointed edition is read from Mechon Mamre's zip (`--niqqud in001.zip` by
