@@ -24,7 +24,7 @@
    run() resolves to one of
      { status: 'conflicts', branch, files: [{ draft, theirs, conflicts }] }
      { status: 'nothing', branch, same }            all of it was already there
-     { status: 'done', branch, fresh, commit, pr: { number, url, created },
+     { status: 'done', branch, fresh, commit, pr: { number, url, created, base },
        paths, same, relabeled: [{ path, from, to }] }
    where `same` lists drafts whose changes the branch already had. */
 
@@ -153,11 +153,89 @@
       }
       return {
         status: 'done', branch: branch, fresh: fresh, commit: commit,
-        pr: { number: pr.number, url: pr.html_url, created: created },
+        pr: { number: pr.number, url: pr.html_url, created: created, base: pr.base.ref },
         paths: paths, same: same, relabeled: relabeled
       };
     }
   }
 
-  MT.submit = { run: run, message: message, branchFor: branchFor, LAYER_NAME: LAYER_NAME };
+  /* ---------------------------------------------------------------- merge */
+
+  /* MERGING A PULL REQUEST, for accounts that can push:
+       1. the repository (may this account push?) and the pull request
+       2. while GitHub is still working out whether it can merge, ask again
+       3. a squash merge, pinned to the head just read so nothing pushed
+          meanwhile goes in unseen (a merge commit if the repository doesn't
+          allow squashing)
+       4. the branch deleted, as GitHub's own button offers. This matters
+          here: a submission later the same day would otherwise add to the
+          merged branch, and its new pull request would show the merged
+          changes again. A branch another open pull request is based on, the
+          default branch, or one in a fork is kept.
+
+     opts: { number, onStep(text), wait(ms) } (wait is for the tests)
+     → { status: 'merged' | 'already', number, title, url, branch, base,
+         sha, method, deleted } */
+  const METHODS = [['squash', 'allow_squash_merge'], ['merge', 'allow_merge_commit']];
+  const POLLS = 5;
+
+  async function land(opts) {
+    const G = MT.github;
+    const step = opts.onStep || function () {};
+    const wait = opts.wait || (ms => new Promise(r => setTimeout(r, ms)));
+    const n = opts.number;
+
+    step('Reading pull request #' + n + '…');
+    const both = await Promise.all([G.repo(), G.pull(n)]);
+    const repo = both[0];
+    let pr = both[1];
+    if (!(repo.permissions && repo.permissions.push)) {
+      throw fail('permission', 'Your GitHub account can\'t merge into ' + repo.full_name + ': that needs write access, ' +
+        'which the repository\'s owner gives.');
+    }
+    const out = { number: n, title: pr.title, url: pr.html_url, branch: pr.head.ref, base: pr.base.ref };
+    if (pr.merged) return Object.assign(out, { status: 'already', sha: pr.merge_commit_sha, method: null, deleted: false });
+    if (pr.state !== 'open') throw fail('closed', 'Pull request #' + n + ' was closed without being merged.');
+
+    for (let i = 0; pr.mergeable === null && i < POLLS; i++) {
+      step('GitHub is checking whether #' + n + ' can merge…');
+      await wait(1000 * (i + 1));
+      pr = await G.pull(n);
+    }
+    if (pr.mergeable === false) {
+      throw fail('conflicts', 'Pull request #' + n + ' conflicts with ' + pr.base.ref + ': a law it changes was changed ' +
+        'there too since. Resolve it on GitHub.');
+    }
+
+    step('Merging #' + n + ' into ' + pr.base.ref + '…');
+    const methods = METHODS.filter(m => repo[m[1]] !== false).map(m => m[0]);
+    if (!methods.length) methods.push('squash');
+    let merged = null, method = null;
+    for (let i = 0; !merged; i++) {
+      try {
+        method = methods[i];
+        merged = await G.mergePull(n, pr.head.sha, method);
+      } catch (e) {
+        if (e.code !== 'notallowed' || i + 1 >= methods.length) throw e;
+      }
+    }
+
+    const ours = pr.head.repo && pr.head.repo.full_name === repo.full_name;
+    let deleted = false;
+    if (ours && pr.head.ref !== repo.default_branch && pr.head.ref !== pr.base.ref) {
+      step('Deleting branch ' + pr.head.ref + '…');
+      try {
+        const open = await G.pulls();
+        if (!open.some(p => p.base.ref === pr.head.ref)) {
+          await G.deleteBranch(pr.head.ref);
+          deleted = true;
+        }
+      } catch (e) {
+        /* Merged is what matters; a branch left behind is only untidy. */
+      }
+    }
+    return Object.assign(out, { status: 'merged', sha: merged.sha, method: method, deleted: deleted });
+  }
+
+  MT.submit = { run: run, land: land, message: message, branchFor: branchFor, LAYER_NAME: LAYER_NAME };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

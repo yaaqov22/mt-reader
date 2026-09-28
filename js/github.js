@@ -51,6 +51,7 @@
       })
       .then(function (res) {
         clearTimeout(timer);
+        if (res.status === 204) return null;   // deleting a ref answers with no body
         if (res.ok) return opts.raw ? res.text() : res.json();
         return res.json().catch(function () { return {}; }).then(function (body) {
           const msg = body && body.message ? body.message : res.statusText;
@@ -64,6 +65,13 @@
           }
           if (res.status === 403) throw fail('forbidden', 'The token cannot read this repository (' + msg + ').', 403);
           if (res.status === 404) throw fail('notfound', msg, 404);
+          /* 405: a merge GitHub won't do — a method the repository doesn't
+             allow, or a protected branch still waiting for a review or a
+             check. 409: the pull request's head moved while merging. */
+          if (res.status === 405) {
+            throw fail(/not allowed/i.test(msg) ? 'notallowed' : 'notmergeable', 'GitHub would not merge it: ' + msg, 405);
+          }
+          if (res.status === 409) throw fail('moved', 'The pull request changed while merging (' + msg + '). Look again, then merge.', 409);
           /* 422: GitHub refused what was asked — a ref that already exists,
              an update that isn't a fast-forward. Callers look for these. */
           if (res.status === 422) throw fail('invalid', 'GitHub refused the request: ' + msg +
@@ -209,6 +217,23 @@
     /* → the pull request: { number, html_url, … } */
     createPull: function (pr) {
       return request(repoPath() + '/pulls', { method: 'POST', body: pr });
+    },
+
+    /* ------------------------------------------------ merging (submit.land) */
+
+    /* One pull request: { number, title, html_url, state, merged,
+       mergeable (null while GitHub is still working it out),
+       head: { ref, sha, repo }, base: { ref } } */
+    pull: function (number) { return request(repoPath() + '/pulls/' + number); },
+
+    /* Merge pull request `number` by `method` ('squash' or 'merge'), only if
+       its head is still commit `sha`. → { sha, merged } */
+    mergePull: function (number, sha, method) {
+      return request(repoPath() + '/pulls/' + number + '/merge', { method: 'PUT', body: { sha: sha, merge_method: method } });
+    },
+
+    deleteBranch: function (branch) {
+      return request(repoPath() + '/git/refs/heads/' + refPath(branch), { method: 'DELETE' });
     }
   };
 

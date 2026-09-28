@@ -59,6 +59,76 @@
     });
   }
 
+  /* ------------------------------------------------------------ merging */
+
+  let pushP = null;   // Promise<boolean>: may this account push, this session
+
+  /* Whether to offer merging at all: the button shows only for accounts
+     that can push. (A token without write access still fails, and says so.) */
+  function canMerge() {
+    const d = MT.device.all();
+    if (d.source !== 'github' || !d.token) return Promise.resolve(false);
+    if (!pushP) {
+      pushP = MT.github.repo().then(function (r) { return !!(r.permissions && r.permissions.push); },
+        function () { pushP = null; return false; });
+    }
+    return pushP;
+  }
+
+  /* Merge pull request `pr` ({ number, title, head, base }, branch names),
+     showing progress in `status`. Afterwards the texts are read afresh, and
+     if the branch being read was the one merged, its base is read instead,
+     with this device's drafts on it. */
+  function merge(pr, btn, status) {
+    const d = MT.device.all();
+    const src = function (b) { return d.owner + '/' + d.repo + '@' + b; };
+    const reading = d.branch === pr.head;
+    const n = reading ? MT.drafts.count() : MT.drafts.elsewhere()[src(pr.head)] || 0;
+    if (!window.confirm('Merge pull request #' + pr.number + (pr.title ? ' "' + pr.title + '"' : '') + ' into ' + pr.base + '?\n\n' +
+      'Its changes become one commit on ' + pr.base + ', and branch ' + pr.head + ' is deleted.' +
+      (n ? '\n\nYour ' + n + (n === 1 ? ' file' : ' files') + ' of unsubmitted changes on ' + pr.head + ' move to ' + pr.base + '.' : ''))) return;
+    btn.disabled = true;
+    status.classList.remove('bad');
+    MT.submit.land({ number: pr.number, onStep: function (t) { status.textContent = t; } }).then(function (r) {
+      const move = r.deleted || reading ? MT.drafts.move(src(r.branch), src(r.base)) : Promise.resolve(0);
+      return move.then(function (moved) {
+        UI.toast((r.status === 'already' ? '#' + r.number + ' was already merged into ' : 'Merged #' + r.number + ' into ') + r.base + '.' +
+          (moved ? ' Your unsubmitted changes moved with it.' : ''), 4000);
+        const patch = {};
+        const last = MT.device.get('lastSubmit');
+        if (last && last.number === r.number) patch.lastSubmit = Object.assign({}, last, { merged: Date.now(), into: r.base });
+        if (reading) {
+          /* Setting the branch reads the texts afresh. */
+          patch.branch = r.base;
+          patch.baseBranch = r.base;
+          MT.device.set(patch);
+        } else {
+          MT.device.set(patch);
+          MT.source.reset(d.branch === r.base);
+        }
+      });
+    }).catch(function (e) {
+      status.textContent = e.message;
+      status.classList.add('bad');
+      btn.disabled = false;
+    });
+  }
+
+  /* A Merge button for `pr`, shown only if this account may merge; empty
+     until that is known. */
+  function mergeButton(pr, status, label) {
+    const box = UI.el('span.mergebox');
+    canMerge().then(function (ok) {
+      if (!ok) return;
+      const btn = UI.btn(label || 'Merge', { class: 'btn primary', onclick: function () { merge(pr, btn, status); } });
+      UI.fill(box, btn);
+    });
+    return box;
+  }
+
+  /* The Changes screen offers it too, right after submitting. */
+  MT.branches = { mergeButton: mergeButton };
+
   /* ------------------------------------------------------ the comparison */
 
   function changeEl(id, layer, change) {
@@ -110,8 +180,19 @@
     const d = MT.device.all();
     const body = UI.el('div', [UI.el('p.status', { text: 'Comparing with ' + d.baseBranch + '…' })]);
     const baseSel = UI.el('span');
+    const mergeBar = UI.el('div');
     fetchLists().then(function (l) {
       if (mine !== seq) return;
+      /* Reading a pull request's branch: having looked it over, merge it here. */
+      const pr = l.pulls.find(function (p) { return p.head.ref === d.branch && ownPull(p); });
+      if (pr) {
+        const status = UI.el('p.status');
+        UI.fill(mergeBar, [
+          UI.el('div.actions', [mergeButton({ number: pr.number, title: pr.title, head: pr.head.ref, base: pr.base.ref }, status,
+            'Merge #' + pr.number + ' into ' + pr.base.ref)]),
+          status
+        ]);
+      }
       const names = l.branches.map(function (b) { return b.name; }).filter(function (n) { return n !== d.branch; });
       if (names.indexOf(d.baseBranch) < 0) names.unshift(d.baseBranch);
       const sel = UI.select(names.map(function (n) { return { value: n, label: n }; }), d.baseBranch, function () {
@@ -147,27 +228,38 @@
 
     return card('What ' + d.branch + ' changes', [
       UI.el('div.basebar', [UI.el('span', { text: 'Compared with ' }), baseSel]),
-      body
+      body,
+      mergeBar
     ]);
   }
 
   /* --------------------------------------------------------- the lists */
 
+  function ownPull(pr) {
+    const d = MT.device.all();
+    return !!pr.head.repo && pr.head.repo.full_name === d.owner + '/' + d.repo;
+  }
+
   function pullEl(pr) {
     const d = MT.device.all();
     const here = d.owner + '/' + d.repo;
-    const fork = !pr.head.repo || pr.head.repo.full_name !== here;
+    const fork = !ownPull(pr);
     const current = !fork && pr.head.ref === d.branch;
+    const status = UI.el('p.status.bitem-status');
     return UI.el('li.bitem' + (current ? '.current' : ''), [
       UI.el('div.bitem-main', [
         UI.el('span.bitem-title', [outLink(pr.html_url, '#' + pr.number), ' ', pr.title, pr.draft ? UI.el('span.tag', { text: 'draft' }) : null]),
         UI.el('span.bitem-meta', {
           text: pr.user.login + ' · ' + pr.head.ref + ' → ' + pr.base.ref + ' · updated ' + ago(pr.updated_at)
-        })
+        }),
+        status
       ]),
-      current ? UI.el('span.tag.on', { text: 'reading' })
-        : fork ? UI.el('span.tag', { text: 'from a fork', title: 'Only branches of ' + here + ' can be read here' })
-          : UI.btn('Read', { onclick: function () { read(pr.head.ref, pr.base.ref); } })
+      UI.el('div.bitem-acts', [
+        current ? UI.el('span.tag.on', { text: 'reading' })
+          : fork ? UI.el('span.tag', { text: 'from a fork', title: 'Only branches of ' + here + ' can be read here' })
+            : UI.btn('Read', { onclick: function () { read(pr.head.ref, pr.base.ref); } }),
+        fork || pr.draft ? null : mergeButton({ number: pr.number, title: pr.title, head: pr.head.ref, base: pr.base.ref }, status)
+      ])
     ]);
   }
 
@@ -226,6 +318,6 @@
   UI.route('branches', { refresh: render });
 
   /* The ↻ button refetches the lists too. */
-  MT.bus.on('source', function () { lists = null; });
+  MT.bus.on('source', function () { lists = null; pushP = null; });
 
 })(window.MT);

@@ -86,6 +86,24 @@
       return MT.store.put('drafts', key, rec);
     },
 
+    /* Move the drafts made against source `from` to source `to` — when the
+       branch they were made on has been merged into `to` and deleted. The
+       base each records is still what it was an edit of, so they merge on
+       submitting as well from there. A file `to` already has a draft of
+       stays where it was. → how many moved. */
+    move: function (from, to) {
+      const writes = [];
+      Array.from(all.values()).forEach(function (r) {
+        if (r.src !== from || all.has(keyFor(to, r.path))) return;
+        const rec = Object.assign({}, r, { key: keyFor(to, r.path), src: to });
+        all.delete(r.key);
+        all.set(rec.key, rec);
+        writes.push(MT.store.del('drafts', r.key), MT.store.put('drafts', rec.key, rec));
+      });
+      if (writes.length) MT.bus.emit('drafts', {});
+      return Promise.all(writes).then(function () { return writes.length / 2; });
+    },
+
     remove: function (path) {
       const key = keyFor(MT.source.key(), path);
       if (!all.has(key)) return Promise.resolve();
