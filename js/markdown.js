@@ -26,9 +26,10 @@
     '\\\\\\[(\\d{1,3})\\]',             // 1     \[4]      English sub-number
     '\\[([\u05D0-\u05EA]{1,3})\\]',     // 2     [ד]       Hebrew sub-number
     '\\\\([\\\\`*_{}\\[\\]()#+\\-.!~>|])', // 3   \x        escaped character
-    '\\*\\*([\\s\\S]+?)\\*\\*',         // 4     **bold**
-    '\\*([^\\s*][\\s\\S]*?)\\*',        // 5     *italic*
-    '\\[([^\\]]*)\\]\\(([^)\\s]+)\\)'   // 6,7   [text](url)
+    '\\*\\*\\*([^\\s*][\\s\\S]*?)\\*\\*\\*', // 4  ***bold italic***
+    '\\*\\*([\\s\\S]+?)\\*\\*',         // 5     **bold**
+    '\\*([^\\s*][\\s\\S]*?)\\*',        // 6     *italic*
+    '\\[([^\\]]*)\\]\\(([^)\\s]+)\\)'   // 7,8   [text](url)
   ].join('|'));
 
   const SCHEMES = ['http:', 'https:', 'mailto:'];
@@ -73,17 +74,22 @@
       if (m[1] !== undefined) marker(m[1], 'Vilna halakhah ' + m[1], parent);
       else if (m[2] !== undefined) marker(m[2], 'Vilna halakhah ' + MT.format.hebToNum(m[2]), parent);
       else if (m[3] !== undefined) parent.appendChild(document.createTextNode(m[3]));
-      else if (m[4] !== undefined) wrap('strong', m[4], parent);
-      else if (m[5] !== undefined) wrap('em', m[5], parent);
-      else if (m[7] !== undefined) {
-        const href = safeHref(m[7]);
+      else if (m[4] !== undefined) {
+        const b = document.createElement('strong');
+        wrap('em', m[4], b);
+        parent.appendChild(b);
+      }
+      else if (m[5] !== undefined) wrap('strong', m[5], parent);
+      else if (m[6] !== undefined) wrap('em', m[6], parent);
+      else if (m[8] !== undefined) {
+        const href = safeHref(m[8]);
         if (!href) breaks(m[0], parent);
         else {
           const a = document.createElement('a');
           a.href = href;
           a.target = '_blank';
           a.rel = 'noopener noreferrer';
-          inline(m[6] || href, a);
+          inline(m[7] || href, a);
           parent.appendChild(a);
         }
       }

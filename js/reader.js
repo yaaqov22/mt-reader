@@ -267,7 +267,7 @@
   /* What a new note starts with: the quoted phrase, and for a review note
      who wrote it and when. */
   function notePrefix(layer, phrase) {
-    const q = phrase ? '*' + phrase + '* - ' : '';
+    const q = phrase ? '***' + phrase + '*** - ' : '';
     if (layer !== 'notes') return q;
     return '**' + (MT.device.get('name') || 'reviewer') + '** ' + today() + ' - ' + q;
   }
