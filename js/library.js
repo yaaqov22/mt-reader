@@ -29,6 +29,25 @@
   let queue = Promise.resolve();   // edits, one after another
   const LAYERS = ['he', 'hen', 'en', 'co', 'notes'];
 
+  /* The first save from an editor that opened on text the branch has since
+     replaced (a live session: someone else's edit arrived meanwhile). What
+     was typed is an edit of what the editor showed, `from`, not of the file
+     as it is now — so the draft is made of that, and then moved onto the
+     new text if the two don't collide (merge.js rebase()). If they do, it
+     stays a draft of the old text, and sharing it asks which to keep,
+     rather than this edit quietly replacing the other. */
+  function editFrom(sec, layer, path, fn, from) {
+    const r = fn(from === null ? null : F.parse(from, layer), sec);
+    return MT.source.sha(path).catch(function () { return null; }).then(function (sha) {
+      const moved = MT.merge.rebase({ layer: layer, base: from, text: r.text }, sec.raw[layer], sha);
+      sections.delete(sec.id);   // read afresh, with the draft as it now stands
+      if (moved && moved.gone) return r;
+      const d = moved || { base: from, baseSha: null, text: r.text };
+      return MT.drafts.put(path, { id: sec.id, layer: layer, base: d.base, baseSha: d.baseSha, text: d.text })
+        .then(function () { return r; });
+    });
+  }
+
   function hasNotes(doc) {
     return !!doc && doc.chapters.some(function (ch) { return ch.notes && ch.notes.length; });
   }
@@ -96,12 +115,14 @@
     /* Change one layer of a section: `fn(doc, sec)` returns edit.js's
        { doc, text } (or throws its edit error, which rejects this). The
        section in memory and the draft are updated together, one edit at a
-       time. */
-    edit: function (id, layer, fn) {
+       time. `from`, if given, is the file's text as the editor making the
+       change found it — see editFrom(). */
+    edit: function (id, layer, fn, from) {
       const run = function () { return lib.section(id).then(function (sec) {
-        const r = fn(sec[layer], sec);
         const path = F.paths(id)[layer];
         const had = sec.drafts[layer];
+        if (!had && from !== undefined && from !== sec.raw[layer]) return editFrom(sec, layer, path, fn, from);
+        const r = fn(sec[layer], sec);
         return (had ? Promise.resolve(null) : MT.source.sha(path).catch(function () { return null; }))
           .then(function (sha) {
             const base = had ? had.base : sec.raw[layer];
@@ -120,6 +141,15 @@
           });
       }); };
       const done = queue.then(run, run);
+      queue = done.catch(function () {});
+      return done;
+    },
+
+    /* Run `fn` between edits, never during one: session.js moves drafts onto
+       the text that has just arrived, which an edit halfway through saving
+       would otherwise write over. */
+    exclusive: function (fn) {
+      const done = queue.then(fn, fn);
       queue = done.catch(function () {});
       return done;
     },

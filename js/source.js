@@ -138,6 +138,25 @@
       return tree();
     },
 
+    /* Move on to a newer commit of the branch being read, whose tree `t`
+       (github.treeAt) the caller has already fetched — session.js, which
+       watches the branch. Only the files that changed are forgotten.
+       → [{ path, was, now }], blob SHAs, null where there is no file.
+       No 'source' event: the caller says when it is ready to be repainted. */
+    advance: function (t) {
+      const key = treeKey();
+      return tree().then(function (old) { return old.tree; }, function () { return {}; }).then(function (was) {
+        const changed = [];
+        Object.keys(Object.assign({}, was, t.tree)).forEach(function (p) {
+          if (was[p] !== t.tree[p]) changed.push({ path: p, was: was[p] || null, now: t.tree[p] || null });
+        });
+        treeP = Promise.resolve({ commit: t.commit, tree: t.tree, fromCache: false });
+        MT.store.put('kv', key, { commit: t.commit, tree: t.tree, at: Date.now() });
+        changed.forEach(function (c) { texts.delete(c.path); });
+        return changed;
+      });
+    },
+
     /* Forget this session's copies. `hard` also refetches the branch tree, so
        new commits on GitHub come in. */
     reset: function (hard) {

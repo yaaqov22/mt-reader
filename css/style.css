@@ -189,6 +189,22 @@ a.crumb:hover { color: var(--accent); }
 .menuwrap { position: relative; }
 .iconbtn svg[viewBox="0 0 16 16"] { width: 19px; height: 19px; }
 .iconbtn.offbase { box-shadow: inset 0 0 0 2px var(--up); color: var(--up); }
+/* In a live session: a dot, pulsing while all is well, red and still while
+   something of this device's hasn't been shared. */
+.iconbtn.live::after {
+  content: "";
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  background: var(--up);
+  animation: livedot 2.4s ease-in-out infinite;
+}
+.iconbtn.live.stuck::after { background: var(--bad); animation: none; }
+@keyframes livedot { 50% { opacity: 0.35; } }
 .menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -572,6 +588,58 @@ div.note.branched.changed { border-left-color: var(--edit); }
 .chg.up { color: var(--up); }
 .draftnote.up { color: var(--up); }
 .draftnote.up.bad { color: var(--bad); }
+
+/* A live session (session.js): how it stands, in one line; what has just
+   arrived from someone else, fading; and the note under an open editor when
+   the thing being edited changed on the branch meanwhile. */
+.liveline { color: var(--up); }
+.liveline::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-inline-end: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.liveline.bad { color: var(--bad); }
+.liveline .linkbtn { font-size: inherit; }
+.card .liveline { margin: 0 0 4px; }
+.cell.fresh, div.note.fresh { animation: fresh 8s ease-out both; border-radius: 4px; }
+@keyframes fresh {
+  from, 25% { background: var(--up-soft); box-shadow: 0 0 0 4px var(--up-soft); }
+  to { background: transparent; box-shadow: 0 0 0 4px transparent; }
+}
+.edit-warn {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-inline-start: 3px solid var(--up);
+  border-radius: var(--radius-sm);
+  background: var(--up-soft);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  direction: ltr;
+  text-align: left;
+}
+.edit-warn .diff { margin: 6px 0; background: var(--bg); font-family: var(--font); font-size: 15px; }
+.edit-warn .diff[lang="he"] { font-family: var(--font-he); font-size: 18px; }
+.edit-warn span { display: block; color: var(--dim); }
+
+/* The resolver, over whatever screen is open. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: calc(24px + env(safe-area-inset-top)) 16px 24px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--text) 45%, transparent);
+}
+.overlay-box { width: 100%; max-width: 900px; }
+.overlay-box .card { margin: 0; box-shadow: var(--shadow); }
 
 .chg {
   display: flex;

@@ -188,5 +188,26 @@
     return result(out, conflicts, relabeled);
   }
 
-  MT.merge = { merge: merge, units: units };
+  /* REBASING A DRAFT, in a live session: the file moved on (someone else's
+     edit arrived) while this device holds a draft of it. A draft is a whole
+     file, so left alone it would go on showing the file without their edit.
+     Where the two merge cleanly the draft is moved onto the new text: the
+     same edits, now of `theirs`.
+
+     rebase(draft, theirs, sha) →
+       null                      leave it: the two collide, or a new note
+                                 would be renumbered (an open editor still
+                                 knows it by its old number). Sharing it
+                                 settles both.
+       { gone: true }            the branch already has everything in it
+       { base, baseSha, text }   the draft's new fields */
+  function rebase(d, theirs, sha) {
+    if (theirs === d.base) return null;
+    const m = merge(d.base, d.text, theirs, d.layer);
+    if (m.conflicts.length || m.relabeled.length) return null;
+    if (m.text === theirs) return { gone: true };
+    return { base: theirs, baseSha: sha || null, text: m.text };
+  }
+
+  MT.merge = { merge: merge, rebase: rebase, units: units };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

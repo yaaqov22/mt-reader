@@ -161,11 +161,16 @@
       badge.hidden = !n;
       /* Reading a branch other than the one it's compared with. */
       btn.classList.toggle('offbase', !!(MT.review && MT.review.active()));
-      btn.title = 'GitHub — reading ' + MT.source.label() +
+      /* In a live session: a dot, red while something of ours isn't shared. */
+      const live = MT.session.active();
+      const s = live ? MT.session.state() : null;
+      btn.classList.toggle('live', live);
+      btn.classList.toggle('stuck', !!(s && (s.conflicts || s.error || s.offline)));
+      btn.title = 'GitHub — ' + (live ? 'in a live session, ' : '') + 'reading ' + MT.source.label() +
         (n ? '; ' + n + (n === 1 ? ' file' : ' files') + ' changed on this device' : '');
     };
     MT.drafts.ready().then(paint);
-    ['drafts', 'source', 'device', 'review'].forEach(function (ev) { MT.bus.on(ev, paint); });
+    ['drafts', 'source', 'device', 'review', 'session'].forEach(function (ev) { MT.bus.on(ev, paint); });
     MT.bus.on('route', function (r) { btn.classList.toggle('on', r.id === 'branches' || r.id === 'changes'); });
 
     dropdown(btn, menu, paint);
@@ -185,6 +190,7 @@
     MT.bus.on('review', function () { if (UI.current().id !== 'settings') UI.refresh(); });
 
     UI.startRouter();
+    MT.session.begin();
     registerWorker();
 
     if (window.matchMedia) {
