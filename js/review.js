@@ -44,19 +44,23 @@
     return MT.github.head(base).then(function (baseHead) {
       if (!baseHead) throw fail('nobase', 'There is no branch "' + base + '" to compare with.');
       return MT.github.compare(baseHead, head).then(function (c) {
-        const reuse = saved && saved.mergeBase === c.mergeBase && saved.tree;
+        const texts = c.files.filter(function (f) { return F.classify(f.path); });
+        const old = function (f) { return f.was || f.path; };
+        /* The saved tree holds only the files the branch had changed when it
+           was saved (null for one it added): a file changed since — in a
+           live session, each new one — means fetching the tree again. */
+        const reuse = saved && saved.mergeBase === c.mergeBase && saved.tree &&
+          texts.every(function (f) { return Object.prototype.hasOwnProperty.call(saved.tree, old(f)); });
         return (reuse ? Promise.resolve({ tree: saved.tree }) : MT.github.treeAt(c.mergeBase)).then(function (t) {
           const files = {};
-          c.files.forEach(function (f) {
-            if (!F.classify(f.path)) return;
-            files[f.path] = { status: f.status, baseSha: t.tree[f.was || f.path] || null };
-          });
-          /* Only the SHAs this branch needs are kept, not the whole tree. */
           const tree = {};
-          Object.keys(files).forEach(function (p) { if (files[p].baseSha) tree[p] = files[p].baseSha; });
+          texts.forEach(function (f) {
+            tree[old(f)] = t.tree[old(f)] || null;
+            files[f.path] = { status: f.status, baseSha: tree[old(f)] };
+          });
           return {
             head: head, base: base, baseHead: baseHead, mergeBase: c.mergeBase,
-            ahead: c.ahead, behind: c.behind, files: files, tree: reuse ? saved.tree : tree, at: Date.now()
+            ahead: c.ahead, behind: c.behind, files: files, tree: tree, at: Date.now()
           };
         });
       });

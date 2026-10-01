@@ -26,7 +26,11 @@
      { status: 'nothing', branch, same }            all of it was already there
      { status: 'done', branch, fresh, commit, pr: { number, url, created, base },
        paths, same, relabeled: [{ path, from, to }] }
-   where `same` lists drafts whose changes the branch already had. */
+   where `same` lists drafts whose changes the branch already had.
+
+   share() and propose() are the same thing taken apart, for a live session:
+   commits straight to the session's branch as edits are finished, and the
+   pull request at the end. */
 
 (function (root) {
   'use strict';
@@ -34,6 +38,7 @@
 
   const LAYER_NAME = { he: 'Hebrew', hen: 'Hebrew (pointed)', en: 'English', co: 'Commentary', notes: 'Review notes' };
   const RETRIES = 2;
+  const SHARE_RETRIES = 4;   // three people finishing edits at once
 
   function fail(code, message) {
     const e = new Error(message);
@@ -110,26 +115,16 @@
       const fresh = head === null;
       const parent = fresh ? await G.head(source) : head;
       if (!parent) throw fail('nobranch', 'Branch "' + source + '" is not on GitHub any more.');
-      const at = await G.treeAt(parent);
-      if (at.truncated) throw fail('truncated', 'The repository is too large to read in one piece.');
+      const at = await treeOf(parent);
 
       step('Merging with the latest text…');
-      const files = {}, conflicts = [], same = [], relabeled = [];
-      for (const d of opts.drafts) {
-        const sha = at.tree[d.path] || null;
-        const theirs = sha === null ? null : sha === d.baseSha ? d.base : await MT.source.blob(sha);
-        const m = MT.merge.merge(d.base, d.text, theirs, d.layer, (opts.resolved || {})[d.path]);
-        if (m.conflicts.length) conflicts.push({ draft: d, theirs: theirs, conflicts: m.conflicts });
-        else if (m.text === theirs) same.push(d.path);
-        else files[d.path] = m.text;
-        m.relabeled.forEach(r => relabeled.push({ path: d.path, from: r.from, to: r.to }));
-      }
-      if (conflicts.length) return { status: 'conflicts', branch: branch, fresh: fresh, files: conflicts };
-      const paths = Object.keys(files);
-      if (!paths.length) return { status: 'nothing', branch: branch, same: same };
+      const m = await mergeAll(opts.drafts, at, opts.resolved);
+      if (m.conflicts.length) return { status: 'conflicts', branch: branch, fresh: fresh, files: m.conflicts };
+      const paths = Object.keys(m.files);
+      if (!paths.length) return { status: 'nothing', branch: branch, same: m.same };
 
       step('Committing ' + paths.length + (paths.length === 1 ? ' file…' : ' files…'));
-      const tree = await G.makeTree(at.treeSha, files);
+      const tree = await G.makeTree(at.treeSha, m.files);
       const commit = await G.commit(text + '\n', tree, parent);
       try {
         if (fresh) await G.createBranch(branch, commit);
@@ -141,22 +136,114 @@
       }
 
       step('Opening the pull request…');
-      let pr = await G.openPull(branch);
-      const created = !pr;
-      if (!pr) {
-        const lines = text.split('\n');
-        const base = source !== branch ? source : (await G.repo()).default_branch;
-        pr = await G.createPull({
-          title: lines[0], head: branch, base: base,
-          body: (lines.slice(1).join('\n').trim() + '\n\nSubmitted with MT Reader.').trim()
-        });
-      }
+      const lines = text.split('\n');
+      const pr = await pullFor(branch, source !== branch ? source : null, lines[0],
+        (lines.slice(1).join('\n').trim() + '\n\nSubmitted with MT Reader.').trim());
       return {
-        status: 'done', branch: branch, fresh: fresh, commit: commit,
-        pr: { number: pr.number, url: pr.html_url, created: created, base: pr.base.ref },
-        paths: paths, same: same, relabeled: relabeled
+        status: 'done', branch: branch, fresh: fresh, commit: commit, pr: pr,
+        paths: paths, same: m.same, relabeled: m.relabeled
       };
     }
+  }
+
+  async function treeOf(commit) {
+    const at = await MT.github.treeAt(commit);
+    if (at.truncated) throw fail('truncated', 'The repository is too large to read in one piece.');
+    return at;
+  }
+
+  /* Each draft merged, law by law, with the file as it is in the tree `at`.
+     → { files: { path: text } to write, conflicts: [{ draft, theirs,
+     conflicts }], same: [path] the tree already has, relabeled } */
+  async function mergeAll(drafts, at, resolved) {
+    const files = {}, conflicts = [], same = [], relabeled = [];
+    for (const d of drafts) {
+      const sha = at.tree[d.path] || null;
+      const theirs = sha === null ? null : sha === d.baseSha ? d.base : await MT.source.blob(sha);
+      const m = MT.merge.merge(d.base, d.text, theirs, d.layer, (resolved || {})[d.path]);
+      if (m.conflicts.length) { conflicts.push({ draft: d, theirs: theirs, conflicts: m.conflicts }); continue; }
+      if (m.text === theirs) same.push(d.path);
+      else files[d.path] = m.text;
+      m.relabeled.forEach(r => relabeled.push({ path: d.path, from: r.from, to: r.to }));
+    }
+    return { files: files, conflicts: conflicts, same: same, relabeled: relabeled };
+  }
+
+  /* The open pull request from `branch`, or a new one into `base` (null: the
+     repository's default branch). → { number, url, created, base } */
+  async function pullFor(branch, base, title, body) {
+    const G = MT.github;
+    let pr = await G.openPull(branch);
+    const created = !pr;
+    if (!pr) {
+      pr = await G.createPull({ title: title, head: branch, base: base || (await G.repo()).default_branch, body: body });
+    }
+    return { number: pr.number, url: pr.html_url, created: created, base: pr.base.ref };
+  }
+
+  /* ---------------------------------------------------------------- share */
+
+  /* SHARING, in a live session (session.js): everyone in it reads one branch
+     and commits to it directly, one small commit each time someone finishes
+     an edit, so the others see it within seconds. The pull request comes
+     once, at the end (propose).
+
+     The same steps as run() without the pull request, on a branch that must
+     already be there, with one difference: a draft that conflicts does not
+     hold up the others. The files that merge are committed; the ones that
+     don't come back to be resolved, and go with the next call.
+
+     opts: { branch, drafts, titles (for the message), resolved, onStep }
+     → { branch, commit (null: nothing needed committing), head (the
+         branch's, afterwards), paths, same, relabeled,
+         texts: { path: text as committed },
+         conflicts: [{ draft, theirs, conflicts }] } */
+  async function share(opts) {
+    const G = MT.github;
+    const step = opts.onStep || function () {};
+    const branch = opts.branch;
+    if (!opts.drafts.length) throw fail('empty', 'There is nothing to share.');
+
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await once();
+      } catch (e) {
+        if (e.code !== 'moved' || attempt >= SHARE_RETRIES) throw e;
+      }
+    }
+
+    async function once() {
+      const head = await G.head(branch);
+      if (!head) throw fail('nobranch', 'Branch "' + branch + '" is not on GitHub any more.');
+      const at = await treeOf(head);
+      const m = await mergeAll(opts.drafts, at, opts.resolved);
+      const out = { branch: branch, commit: null, head: head, paths: Object.keys(m.files), same: m.same,
+        relabeled: m.relabeled, texts: m.files, conflicts: m.conflicts };
+      if (!out.paths.length) return out;
+
+      step('Sharing…');
+      const sent = opts.drafts.filter(d => Object.prototype.hasOwnProperty.call(m.files, d.path));
+      const tree = await G.makeTree(at.treeSha, m.files);
+      const commit = await G.commit(message(sent, opts.titles), tree, head);
+      try {
+        await G.moveBranch(branch, commit);
+      } catch (e) {
+        /* Someone else in the session got there first: merge with theirs. */
+        if (e.code === 'invalid') throw fail('moved', 'Branch ' + branch + ' changed while sharing.');
+        throw e;
+      }
+      out.commit = out.head = commit;
+      return out;
+    }
+  }
+
+  /* The pull request for a branch that already holds its changes — a
+     session's, when it is over. The one already open, or a new one into
+     `base`. opts: { branch, base, title, body } → { number, url, created, base } */
+  function propose(opts) {
+    const title = String(opts.title || '').trim();
+    if (!title) return Promise.reject(fail('message', 'Give the pull request a title.'));
+    return pullFor(opts.branch, opts.base, title, (String(opts.body || '').trim() + '\n\nEdited together with MT Reader.').trim());
   }
 
   /* ---------------------------------------------------------------- merge */
@@ -237,5 +324,8 @@
     return Object.assign(out, { status: 'merged', sha: merged.sha, method: method, deleted: deleted });
   }
 
-  MT.submit = { run: run, land: land, message: message, branchFor: branchFor, LAYER_NAME: LAYER_NAME };
+  MT.submit = {
+    run: run, land: land, share: share, propose: propose,
+    message: message, branchFor: branchFor, LAYER_NAME: LAYER_NAME
+  };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

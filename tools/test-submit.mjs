@@ -456,6 +456,129 @@ test('one already merged is reported; a branch another pull request is based on 
   assert.ok(G2.branches.has(B));
 });
 
+/* ---------- a live session: sharing, rebasing, the pull request at the end ---------- */
+
+const S = 'session/20260922';
+
+function session(files) {
+  const G = fakeGitHub(files);
+  G.branches.set(S, G.branches.get('master'));
+  return G;
+}
+
+test('sharing commits straight to the session branch, with no pull request', async () => {
+  const G = session({ [EN_P]: EN, [CO_P]: CO });
+  const d = draft(G, EN_P, 'en', setLaw(EN, '1:1', 'Mine.'), S);
+  const r = await MT.submit.share({ branch: S, drafts: [d], titles: { '1-1': 'Foundations of the Torah' } });
+  assert.deepEqual([r.branch, r.paths, r.same, r.conflicts], [S, [EN_P], [], []]);
+  assert.equal(r.commit, G.branches.get(S));
+  assert.equal(r.texts[EN_P], setLaw(EN, '1:1', 'Mine.'));
+  assert.equal(G._file(S, EN_P), setLaw(EN, '1:1', 'Mine.'));
+  assert.equal(G._file('master', EN_P), EN, 'master untouched');
+  assert.equal(G.commits.get(r.commit).message, 'Edit Foundations of the Torah (1-1)\n\nEnglish 1-1: law 1:1\n');
+  assert.equal(G._pulls.length, 0);
+  assert.ok(!G.calls.includes('user'), 'the branch is the session\'s, not the person\'s');
+});
+
+test('two people sharing different laws of one file both land', async () => {
+  const G = session({ [EN_P]: EN });
+  const mine = draft(G, EN_P, 'en', setLaw(EN, '1:1', 'Mine.'), S);
+  const theirs = draft(G, EN_P, 'en', setLaw(EN, '2:1', 'Theirs.'), S);
+  await MT.submit.share({ branch: S, drafts: [theirs] });
+  const r = await MT.submit.share({ branch: S, drafts: [mine] });
+  assert.deepEqual(r.conflicts, []);
+  assert.equal(G._file(S, EN_P), setLaw(setLaw(EN, '1:1', 'Mine.'), '2:1', 'Theirs.'));
+});
+
+test('sharing at the same moment as someone else is retried on their commit', async () => {
+  const G = session({ [EN_P]: EN });
+  const d = draft(G, EN_P, 'en', setLaw(EN, '1:1', 'Mine.'), S);
+  let raced = 0;
+  const move = G.moveBranch;
+  G.moveBranch = async (b, sha) => {
+    if (raced < 2) { raced++; G._push(b, { [EN_P]: setLaw(G._file(b, EN_P), raced === 1 ? '1:2' : '2:1', 'Theirs ' + raced + '.') }); }
+    return move(b, sha);
+  };
+  const r = await MT.submit.share({ branch: S, drafts: [d] });
+  assert.equal(r.commit, G.branches.get(S));
+  assert.equal(G._file(S, EN_P), setLaw(setLaw(setLaw(EN, '1:1', 'Mine.'), '1:2', 'Theirs 1.'), '2:1', 'Theirs 2.'));
+});
+
+test('a colliding file is held back while the others are shared; its resolution goes next', async () => {
+  const G = session({ [EN_P]: EN, [CO_P]: CO });
+  const en = draft(G, EN_P, 'en', setLaw(EN, '1:2', 'Mine.'), S);
+  const co = draft(G, CO_P, 'co', addNote(CO, 1, 1, 'A note.'), S);
+  G._push(S, { [EN_P]: setLaw(EN, '1:2', 'Theirs.') });
+  const r = await MT.submit.share({ branch: S, drafts: [en, co] });
+  assert.deepEqual(r.paths, [CO_P]);
+  assert.deepEqual(r.conflicts.map(f => [f.draft.path, f.conflicts.map(c => c.id)]), [[EN_P, ['law:1:2']]]);
+  assert.equal(G._file(S, CO_P), co.text);
+  assert.equal(G._file(S, EN_P), setLaw(EN, '1:2', 'Theirs.'));
+  assert.equal(G.commits.get(r.commit).message, 'Edit 1-1\n\nCommentary 1-1: note 1.1.1 (new)\n', 'the message names only what went');
+
+  const r2 = await MT.submit.share({ branch: S, drafts: [en], resolved: { [EN_P]: { 'law:1:2': 'Both.' } } });
+  assert.deepEqual([r2.paths, r2.conflicts], [[EN_P], []]);
+  assert.equal(G._file(S, EN_P), setLaw(EN, '1:2', 'Both.'));
+});
+
+test('only collisions, or only what the branch already has: no commit', async () => {
+  const G = session({ [EN_P]: EN });
+  const d = draft(G, EN_P, 'en', setLaw(EN, '1:2', 'Mine.'), S);
+  G._push(S, { [EN_P]: setLaw(EN, '1:2', 'Theirs.') });
+  const head = G.branches.get(S);
+  const r = await MT.submit.share({ branch: S, drafts: [d] });
+  assert.deepEqual([r.commit, r.paths, r.conflicts.length], [null, [], 1]);
+  const same = await MT.submit.share({ branch: S, drafts: [draft(G, EN_P, 'en', setLaw(EN, '1:2', 'Theirs.'), 'master')] });
+  assert.deepEqual([same.commit, same.same, same.conflicts], [null, [EN_P], []]);
+  assert.equal(G.branches.get(S), head);
+});
+
+test('a session branch that has gone is said, and nothing is made', async () => {
+  const G = fakeGitHub({ [EN_P]: EN });
+  await assert.rejects(MT.submit.share({ branch: S, drafts: [draft(G, EN_P, 'en', setLaw(EN, '1:1', 'x'))] }), e => e.code === 'nobranch');
+  assert.ok(!G.branches.has(S));
+  await assert.rejects(MT.submit.share({ branch: S, drafts: [] }), e => e.code === 'empty');
+});
+
+test('the pull request at the end is opened once, into the base given', async () => {
+  const G = session({ [EN_P]: EN });
+  await MT.submit.share({ branch: S, drafts: [draft(G, EN_P, 'en', setLaw(EN, '1:1', 'Mine.'), S)] });
+  const pr = await MT.submit.propose({ branch: S, base: 'master', title: ' Study session ', body: 'English 1-1' });
+  assert.deepEqual(pr, { number: 1, url: 'https://github.com/x/y/pull/1', created: true, base: 'master' });
+  assert.deepEqual([G._pulls[0].title, G._pulls[0].head.ref, G._pulls[0].body],
+    ['Study session', S, 'English 1-1\n\nEdited together with MT Reader.']);
+  const again = await MT.submit.propose({ branch: S, base: 'master', title: 'Again' });
+  assert.deepEqual([again.number, again.created], [1, false]);
+  assert.equal(G._pulls.length, 1);
+  await assert.rejects(MT.submit.propose({ branch: S, base: 'master', title: ' ' }), e => e.code === 'message');
+  // And merging it works as for any other pull request.
+  const r = await MT.submit.land({ number: 1, wait: noWait });
+  assert.deepEqual([r.status, r.deleted], ['merged', true]);
+  assert.equal(G._file('master', EN_P), setLaw(EN, '1:1', 'Mine.'));
+});
+
+test('a draft is rebased onto an edit that arrives, keeping only what is still its own', () => {
+  const d = { layer: 'en', base: EN, baseSha: 'b0', text: setLaw(EN, '1:1', 'Mine.') };
+  const theirs = setLaw(EN, '2:1', 'Theirs.');
+  assert.deepEqual(MT.merge.rebase(d, theirs, 'b1'),
+    { base: theirs, baseSha: 'b1', text: setLaw(theirs, '1:1', 'Mine.') });
+  assert.equal(MT.merge.rebase(d, EN, 'b0'), null, 'nothing arrived');
+  // What it shared has come back: the part still being typed stays a draft of the new text.
+  const typing = Object.assign({}, d, { text: setLaw(d.text, '1:2', 'Half typ') });
+  assert.deepEqual(MT.merge.rebase(typing, d.text, 'b2'), { base: d.text, baseSha: 'b2', text: typing.text });
+  assert.deepEqual(MT.merge.rebase(d, d.text, 'b2'), { gone: true });
+});
+
+test('a draft that collides with what arrived, or whose new note would be renumbered, is left for sharing', () => {
+  const d = { layer: 'en', base: EN, baseSha: 'b0', text: setLaw(EN, '1:1', 'Mine.') };
+  assert.equal(MT.merge.rebase(d, setLaw(EN, '1:1', 'Theirs.'), 'b1'), null);
+  assert.equal(MT.merge.rebase(d, null, null), null, 'the file was deleted');
+  const note = { layer: 'co', base: CO, baseSha: 'c0', text: addNote(CO, 2, 1, 'Mine.') };
+  assert.equal(MT.merge.rebase(note, addNote(CO, 2, 1, 'Theirs.'), 'c1'), null);
+  const elsewhere = addNote(CO, 1, 1, 'Theirs, on another law.');
+  assert.equal(MT.merge.rebase(note, elsewhere, 'c1').text, addNote(elsewhere, 2, 1, 'Mine.'));
+});
+
 test('branchFor pads the date', () => {
   assert.equal(MT.submit.branchFor('andy', new Date(2027, 0, 5)), 'andy/20270105');
 });

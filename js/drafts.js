@@ -86,6 +86,18 @@
       return MT.store.put('drafts', key, rec);
     },
 
+    /* Move this source's draft of `path` onto a newer text of the file
+       (merge.js rebase()): `to` is { base, baseSha, text }. */
+    rebase: function (path, to) {
+      const key = keyFor(MT.source.key(), path);
+      const was = all.get(key);
+      if (!was) return Promise.resolve();
+      const rec = Object.assign({}, was, { base: to.base, baseSha: to.baseSha, text: to.text });
+      all.set(key, rec);
+      MT.bus.emit('drafts', { path: path });
+      return MT.store.put('drafts', key, rec);
+    },
+
     /* Move the drafts made against source `from` to source `to` — when the
        branch they were made on has been merged into `to` and deleted. The
        base each records is still what it was an edit of, so they merge on

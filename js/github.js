@@ -26,7 +26,11 @@
     return e;
   }
 
-  /* opts: { token, raw (the body as text), method, body (sent as JSON) } */
+  const SAME = {};   // what a conditional request resolves to when nothing changed
+
+  /* opts: { token, raw (the body as text), method, body (sent as JSON),
+             etag (ask only if the answer differs from the one that had this
+             ETag: resolves to SAME if not), onEtag(tag) (the answer's own) } */
   function request(path, opts) {
     opts = opts || {};
     const token = opts.token !== undefined ? opts.token : MT.device.get('token');
@@ -37,6 +41,7 @@
     };
     if (token) headers.Authorization = 'Bearer ' + token;
     if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+    if (opts.etag) headers['If-None-Match'] = opts.etag;
 
     const ctrl = window.AbortController ? new AbortController() : null;
     const timer = ctrl ? setTimeout(function () { ctrl.abort(); }, TIMEOUT) : 0;
@@ -52,7 +57,11 @@
       .then(function (res) {
         clearTimeout(timer);
         if (res.status === 204) return null;   // deleting a ref answers with no body
-        if (res.ok) return opts.raw ? res.text() : res.json();
+        if (res.status === 304) return SAME;
+        if (res.ok) {
+          if (opts.onEtag) opts.onEtag(res.headers.get('ETag'));
+          return opts.raw ? res.text() : res.json();
+        }
         return res.json().catch(function () { return {}; }).then(function (body) {
           const msg = body && body.message ? body.message : res.statusText;
           if (res.status === 401) throw fail('auth', 'GitHub did not accept the token (' + msg + '). Check it in Settings.', 401);
@@ -174,6 +183,28 @@
           if (e.code === 'notfound') return null;
           throw e;
         });
+    },
+
+    /* ------------------------------------------- a live session (session.js) */
+
+    /* A branch's head, for someone watching it: asked with the ETag of the
+       last answer, so that GitHub answers "not modified" for as long as
+       nobody has pushed, which costs nothing against the rate limit.
+       → { sha, etag }, { same: true }, or { gone: true } (no such branch). */
+    watch: function (branch, etag) {
+      let tag = null;
+      return request(repoPath() + '/git/ref/heads/' + refPath(branch), { etag: etag, onEtag: function (t) { tag = t; } })
+        .then(function (r) { return r === SAME ? { same: true } : { sha: r.object.sha, etag: tag }; }, function (e) {
+          if (e.code === 'notfound') return { gone: true };
+          throw e;
+        });
+    },
+
+    /* Who made a commit: their GitHub login, or failing that the name on it. */
+    author: function (sha) {
+      return request(repoPath() + '/commits/' + sha).then(function (c) {
+        return (c.author && c.author.login) || (c.commit && c.commit.author && c.commit.author.name) || null;
+      });
     },
 
     /* A tree: `base` (a tree SHA) with `files` { path: text | null } written

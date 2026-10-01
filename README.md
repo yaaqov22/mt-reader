@@ -29,6 +29,9 @@ and no build step, installable on desktop now and wrapped for Android
   master or its pull request's base marked in blue in the reader and listed
   law by law, changed sections tagged in the contents, and review notes in
   a column of their own.
+- [x] **Live sessions.** Several people reading and editing one branch
+  together, each seeing the others' edits within seconds, with one pull
+  request at the end.
 - [ ] M5: PWA polish
 - [ ] M6: Android shell
 
@@ -59,7 +62,7 @@ No build step. Serve the folder over HTTP and open `index.html`.
 | `#/search/<query>` | search results; `/he.en.co~3~w` after it picks layers, book, whole words |
 | `#/read/1-1/3/5/<query>` | law 5 with the query highlighted (where results lead) |
 | `#/changes` | every draft on this device for the branch being read, and submitting them |
-| `#/branches` | open pull requests and branches to read, and what the branch being read changes |
+| `#/branches` | open pull requests and branches to read, what the branch being read changes, and live sessions |
 | `#/settings` | source, token, your name, offline, theme |
 
 ← and → move between chapters; / opens search.
@@ -129,6 +132,47 @@ on, so switching never mixes them. Review notes have their own column
 (*Notes*), which steps aside in sections that have none, except in edit
 mode.
 
+**Live sessions** (GitHub source only) are for studying together: several
+people read the same text, any of them edits, and each edit shows on the
+others' screens a few seconds after it is finished. There is no server in
+it. A session is a branch named `session/<yyyymmdd>`, and being in one is
+nothing more than reading that branch.
+
+- *Start a session* on the Branches screen makes the branch from the one
+  being read (or joins today's, if someone already has). The others open
+  the Branches screen and press *Join* beside it. The GitHub button in the
+  top bar carries a blue dot while in one.
+- **Sharing.** When an editor closes (Done, Ctrl+Enter, Esc, or clicking
+  another law), the edit goes to the branch as one small commit under that
+  person's own account (`MT.submit.share`), merged law by law with whatever
+  the others committed meanwhile. A file still being typed in waits for its
+  editor, so nobody is shown half a sentence. Nothing has to be submitted:
+  the Changes screen lists only what hasn't gone yet (offline, say), and it
+  goes when GitHub can be reached again.
+- **Watching.** Every four seconds the branch's head is asked for with the
+  ETag of the last answer, which GitHub doesn't count against the rate
+  limit while nothing has changed. When it has moved, the files that changed
+  are fetched, the reader repaints in place, and what arrived is highlighted
+  for a few seconds and named in a toast with who made it. An open editor
+  stays as it is, caret and all, while everything around it updates.
+  Watching pauses while the page is hidden.
+- **Collisions.** Edits to different laws or notes never collide, even in
+  one file, and two people adding a note to the same law at once just get
+  consecutive numbers. If two people change the same law, the second to
+  finish gets the resolver from the Changes screen, over whatever is open:
+  theirs, yours, and a box for the result. Someone whose open editor is on a
+  law that changes under them is told so in the editor — or, if they hadn't
+  typed anything yet, the editor simply closes on the new text.
+- **Ending.** *Open the pull request* on the Branches screen gathers the
+  whole session into one pull request into the branch it started from; edits
+  made afterwards are added to it. Merging it (squashed, as always) deletes
+  the branch, and everyone still in the session is taken back to the base
+  branch.
+
+A token that can only read can still watch a session. What the session has
+changed is marked in blue as for any branch, so the diff of every edit is a
+click away.
+
 **Bookmarks** mark where a work session stopped. Each law or paragraph has a
 ribbon in its right margin (shown on hover, kept once set; the counts of any
 hidden commentary and review notes sit above it), and *Bookmark*
@@ -154,8 +198,8 @@ Plain scripts on a global `MT` namespace, loaded in dependency order by
 | `utils.js` | namespace, event bus, device settings (localStorage) |
 | `format.js` | parser/writer for the text files; shared with the Node tools |
 | `edit.js` | edits to parsed documents (laws, notes), change lists, word diff; shared with the Node tools |
-| `merge.js` | per-law three-way merge of a draft with the file as it now is; shared with the Node tools |
-| `submit.js` | submitting: branch, merge, commit, pull request; and merging a pull request (no DOM; tested against a fake GitHub) |
+| `merge.js` | per-law three-way merge of a draft with the file as it now is, and moving a draft onto a newer text; shared with the Node tools |
+| `submit.js` | submitting: branch, merge, commit, pull request; sharing in a live session; and merging a pull request (no DOM; tested against a fake GitHub) |
 | `icons.js`, `ui.js`, `markdown.js` | inline SVG icons, DOM helper and hash router, inline Markdown to DOM (never `innerHTML`) |
 | `store.js` | IndexedDB (`blobs` by SHA, `kv`, `drafts`) |
 | `github.js` | GitHub REST client: reading, and the Git Data and pull request calls |
@@ -165,6 +209,7 @@ Plain scripts on a global `MT` namespace, loaded in dependency order by
 | `library.js` | index and parsed sections, merged law by law, drafts applied; `lib.edit` |
 | `bookmarks.js` | bookmarked laws, on this device (localStorage) |
 | `editor.js` | the in-place textarea editor, autosaving |
+| `session.js` | live sessions: watching the branch, sharing each edit as it is finished, the resolver when two collide |
 | `books.js`, `reader.js`, `search.js`, `changes.js`, `branches.js`, `settings.js` | the screens (search.js also holds the search engine) |
 | `main.js` | boot, top bar, service worker |
 
@@ -201,7 +246,7 @@ NODE="/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Microsoft/
 "$NODE" tools/migrate.mjs            # → out/migrated/ + out/migrated/REPORT.md
 "$NODE" tools/test-format.mjs        # unit tests + corpus checks on out/migrated
 "$NODE" tools/test-edit.mjs          # editing tests + a re-save check over the corpus (~30 s)
-"$NODE" tools/test-submit.mjs        # merge tests + submitting and merging against a fake GitHub
+"$NODE" tools/test-submit.mjs        # merge tests + submitting, sharing and merging against a fake GitHub
 ```
 
 The pointed edition is read from Mechon Mamre's zip (`--niqqud in001.zip` by

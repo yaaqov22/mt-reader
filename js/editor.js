@@ -9,6 +9,7 @@
      onClose()    after the last save, when the editor has gone
      render(body) → nodes to leave in its place when another editor opens
                   (onClose, which repaints the screen, would close that one)
+     at           what is being edited, for whoever asks (see at() below)
    })
 
    SAVING. Every pause in the typing (half a second) saves, and so does
@@ -18,7 +19,13 @@
    draft keeps the last text that could be saved. Esc on a refused text
    leaves without it.
 
-   Only one editor is open at a time; opening another closes the first. */
+   Only one editor is open at a time; opening another closes the first.
+
+   A LIVE SESSION (session.js) shares each edit when its editor closes, so
+   the bus hears 'editor' { open } as one opens and as one has closed, its
+   last save done. at() says what the open one is editing and whether it has
+   changed anything yet, and warn() puts a line under it — the reader's, when
+   someone else changes the same law meanwhile. */
 
 (function (MT) {
   'use strict';
@@ -43,13 +50,16 @@
     const status = UI.el('span.edit-status');
     const err = UI.el('p.edit-error', { role: 'alert' });
     err.hidden = true;
+    const warning = UI.el('div.edit-warn', { role: 'status' });
+    warning.hidden = true;
     const done = UI.btn('Done', { class: 'btn small primary', title: 'Done (Ctrl+Enter)' });
     const box = UI.el('div.editor', [
-      ta, err,
+      ta, err, warning,
       UI.el('div.edit-bar', [status, opts.hint ? UI.el('span.edit-hint', { text: opts.hint }) : null, done])
     ]);
     UI.fill(host, box);
 
+    const began = ta.value;
     let saved = ta.value;       // the last text the draft holds
     let failed = false;
     let chain = Promise.resolve();
@@ -87,6 +97,7 @@
         document.removeEventListener('visibilitychange', onHide);
         if (replaced) UI.fill(host, opts.render ? opts.render(saved) : null);
         else if (opts.onClose) opts.onClose();
+        MT.bus.emit('editor', { open: false });
       });
     }
 
@@ -105,8 +116,19 @@
     });
     done.addEventListener('click', function () { close(false); });
 
-    const api = { close: function () { return close(true, true); }, flush: save };
+    const api = {
+      close: function () { return close(true, true); },
+      flush: save,
+      at: function () {
+        return Object.assign({}, opts.at, { dirty: saved !== began || ta.value !== began });
+      },
+      warn: function (children) {
+        UI.fill(warning, children);
+        warning.hidden = !children;
+      }
+    };
     current = api;
+    MT.bus.emit('editor', { open: true });
     grow(ta);
     ta.focus();
     if (opts.caretEnd !== false) ta.setSelectionRange(ta.value.length, ta.value.length);
@@ -129,6 +151,10 @@
     open: open,
     diff: diff,
     active: function () { return !!current; },
+    /* What the open editor is editing — the `at` it was opened with, and
+       `dirty`: whether its text has changed since — or null. */
+    at: function () { return current ? current.at() : null; },
+    warn: function (children) { if (current) current.warn(children); },
     close: function () { return current ? current.close() : Promise.resolve(); }
   };
 

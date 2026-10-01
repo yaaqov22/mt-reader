@@ -12,7 +12,11 @@
 
    Drafts belong to the branch they were made on (drafts.js), so switching
    branches never loses or mixes edits; they are there again on switching
-   back. */
+   back.
+
+   A LIVE SESSION (session.js) is a branch too, named session/…: it is
+   started here, joined here by reading it like any other, and its pull
+   request is opened here when it is over. */
 
 (function (MT) {
   'use strict';
@@ -54,7 +58,7 @@
   function read(branch, base) {
     MT.editor.close().then(function () {
       MT.device.set({ branch: branch, baseBranch: base });
-      UI.toast('Reading ' + branch + '.');
+      UI.toast((MT.session.is(branch) ? 'Joined ' : 'Reading ') + branch + '.');
       window.scrollTo(0, 0);
     });
   }
@@ -128,6 +132,92 @@
 
   /* The Changes screen offers it too, right after submitting. */
   MT.branches = { mergeButton: mergeButton };
+
+  /* ---------------------------------------------------- the live session */
+
+  /* Not in one: what it is, and starting (or joining) today's. In one: how
+     it stands, and its pull request — opening it, once the session is over,
+     or the one already open. */
+  function sessionCard(mine) {
+    const d = MT.device.all();
+    const S = MT.session;
+    const status = UI.el('p.status');
+    const say = function (e) {
+      status.textContent = e.message;
+      status.classList.add('bad');
+    };
+    const code = function (t) { return UI.el('code', { text: t }); };
+
+    if (!S.active()) {
+      if (!d.token) {
+        return card('Live session', [UI.note('Reading and editing together, each seeing the others\' edits as they are made. ' +
+          'It needs a GitHub token with write access, added in Settings.')]);
+      }
+      const from = S.is(d.branch) ? d.baseBranch : d.branch;
+      const start = UI.btn('Start a session', {
+        class: 'btn primary',
+        onclick: function () {
+          start.disabled = true;
+          status.classList.remove('bad');
+          status.textContent = 'Starting…';
+          S.start().then(function (r) {
+            UI.toast((r.joined ? 'Joined ' : 'Started ') + r.branch + '.');
+          }, function (e) { say(e); start.disabled = false; });
+        }
+      });
+      return card('Live session', [
+        UI.note('Read and edit together. Everyone in a session reads one shared branch, and each edit shows on the ' +
+          'others\' screens a few seconds after it is finished. When it is over, one pull request holds everything ' +
+          'the session changed.'),
+        UI.note('Starting makes the branch ' + S.nameFor(new Date()) + ' from ' + from + '; the others then open this ' +
+          'screen and choose Join beside it. If today\'s session is already running, this joins it.'),
+        UI.el('div.actions', [start]),
+        status
+      ]);
+    }
+
+    const prBox = UI.el('div');
+    fetchLists().then(function (l) {
+      if (mine !== seq) return;
+      const pr = l.pulls.find(function (p) { return p.head.ref === d.branch && ownPull(p); });
+      if (pr) {
+        UI.fill(prBox, UI.el('p.status', [outLink(pr.html_url, 'Pull request #' + pr.number), ' is open for this session, into ',
+          code(pr.base.ref), '. Edits made from now on are added to it; it is merged below.']));
+        return;
+      }
+      const title = UI.input({
+        value: 'Study session, ' + new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+      });
+      const open = UI.btn('Open the pull request', {
+        class: 'btn primary',
+        onclick: function () {
+          open.disabled = true;
+          status.classList.remove('bad');
+          status.textContent = 'Opening the pull request…';
+          S.propose(title.value).then(function (pr) {
+            UI.toast(pr.created ? 'Opened pull request #' + pr.number + '.' : 'Pull request #' + pr.number + ' was already open.');
+            status.textContent = '';
+            lists = null;
+            UI.refresh();
+          }, function (e) { say(e); open.disabled = false; });
+        }
+      });
+      UI.fill(prBox, [
+        UI.field('When the session is over', title, 'The title of one pull request into ' + d.baseBranch +
+          ' holding everything the session changed.'),
+        UI.el('div.actions', [open])
+      ]);
+    }, function () {});
+
+    return card('Live session', [
+      UI.el('p', ['You are in ', code(d.branch), ', compared with ', code(d.baseBranch), '. The others join from this ' +
+        'screen, with Join beside the branch.']),
+      S.line(),
+      prBox,
+      status,
+      UI.el('div.actions', [UI.btn('Leave the session', { onclick: function () { S.leave(); } })])
+    ]);
+  }
 
   /* ------------------------------------------------------ the comparison */
 
@@ -257,7 +347,7 @@
       UI.el('div.bitem-acts', [
         current ? UI.el('span.tag.on', { text: 'reading' })
           : fork ? UI.el('span.tag', { text: 'from a fork', title: 'Only branches of ' + here + ' can be read here' })
-            : UI.btn('Read', { onclick: function () { read(pr.head.ref, pr.base.ref); } }),
+            : UI.btn(MT.session.is(pr.head.ref) ? 'Join' : 'Read', { onclick: function () { read(pr.head.ref, pr.base.ref); } }),
         fork || pr.draft ? null : mergeButton({ number: pr.number, title: pr.title, head: pr.head.ref, base: pr.base.ref }, status)
       ])
     ]);
@@ -266,14 +356,17 @@
   function branchEl(b, pulls) {
     const d = MT.device.all();
     const current = b.name === d.branch;
+    const live = MT.session.is(b.name);
     const pr = pulls.find(function (p) { return p.head.ref === b.name && p.head.repo && p.head.repo.full_name === d.owner + '/' + d.repo; });
     return UI.el('li.bitem' + (current ? '.current' : ''), [
       UI.el('div.bitem-main', [
         UI.el('code.bitem-title', { text: b.name }),
-        pr ? UI.el('span.bitem-meta', { text: 'pull request #' + pr.number + ' into ' + pr.base.ref }) : null
+        live || pr ? UI.el('span.bitem-meta', {
+          text: [live ? 'live session' : null, pr ? 'pull request #' + pr.number + ' into ' + pr.base.ref : null].filter(Boolean).join(' · ')
+        }) : null
       ]),
       current ? UI.el('span.tag.on', { text: 'reading' })
-        : UI.btn('Read', { onclick: function () { read(b.name, pr ? pr.base.ref : 'master'); } })
+        : UI.btn(live ? 'Join' : 'Read', { class: live ? 'btn primary' : 'btn', onclick: function () { read(b.name, pr ? pr.base.ref : 'master'); } })
     ]);
   }
 
@@ -283,9 +376,11 @@
     fetchLists().then(function (l) {
       if (mine !== seq) return;
       UI.fill(pullsBody, l.pulls.length ? UI.el('ul.blist', l.pulls.map(pullEl)) : UI.note('No open pull requests.'));
+      /* master first, then any live sessions (newest first), then the rest. */
       const master = l.branches.filter(function (b) { return b.name === 'master' || b.name === 'main'; });
-      const rest = l.branches.filter(function (b) { return master.indexOf(b) < 0; });
-      UI.fill(branchBody, UI.el('ul.blist', master.concat(rest).map(function (b) { return branchEl(b, l.pulls); })));
+      const live = l.branches.filter(function (b) { return MT.session.is(b.name); }).reverse();
+      const rest = l.branches.filter(function (b) { return master.indexOf(b) < 0 && live.indexOf(b) < 0; });
+      UI.fill(branchBody, UI.el('ul.blist', master.concat(live, rest).map(function (b) { return branchEl(b, l.pulls); })));
     }, function (e) {
       if (mine !== seq) return;
       [pullsBody, branchBody].forEach(function (b) { UI.fill(b, UI.el('p.status.bad', { text: e.message })); });
@@ -308,6 +403,7 @@
       return;
     }
     UI.fill(host, head.concat(
+      sessionCard(mine),
       MT.review.active() ? compareCard(mine)
         : card('Reading ' + d.branch, [UI.note('Choose a pull request or a branch below to read it, with what it changes ' +
           'compared with ' + d.branch + ' marked in the text.')]),

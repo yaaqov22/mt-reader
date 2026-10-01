@@ -12,6 +12,11 @@
    the answers. Submitted drafts are removed: the changes now live in the pull
    request, and the last one is linked at the top.
 
+   IN A LIVE SESSION (session.js) there is nothing to submit: each edit goes
+   to the session's branch as it is finished, and what is listed here is only
+   what hasn't gone yet. The resolver is the same one, and session.js shows
+   it over whatever screen is open (MT.changes.resolver).
+
    Drafts made against another branch or the local folder are counted at the
    bottom but not listed — switch to that source in Settings to see them. */
 
@@ -91,7 +96,7 @@
   function fileEl(sec, layer, rerender) {
     const d = sec.drafts[layer];
     const changes = E.changes(sec.base[layer], sec[layer], layer);
-    const pick = cannotSubmit() ? null : UI.el('input', {
+    const pick = cannotSubmit() || MT.session.active() ? null : UI.el('input', {
       type: 'checkbox', title: 'Include in the submission',
       onchange: function () { if (pick.checked) state.excluded.delete(d.path); else state.excluded.add(d.path); rerender(); }
     });
@@ -265,8 +270,12 @@
     ]);
   }
 
-  function resolverCard(rerender) {
-    const c = state.conflicts;
+  /* The collisions of a submission (or, in a live session, of a share), each
+     with a box for what it should read.
+     c: { branch, files: [{ draft, theirs, conflicts }], verb, again,
+          other (what they collide with, if not "GitHub"),
+          go(resolved, status, button), cancel() } */
+  function resolverCard(c) {
     const answers = [];
     const n = c.files.reduce(function (s, f) { return s + f.conflicts.length; }, 0);
     const files = c.files.map(function (f) {
@@ -279,7 +288,7 @@
       ]);
     });
     const status = UI.el('p.status');
-    const go = UI.btn('Submit with these', {
+    const go = UI.btn(c.verb, {
       class: 'btn primary',
       onclick: function () {
         const resolved = {};
@@ -294,16 +303,38 @@
           status.classList.add('bad');
           return;
         }
-        submit(c.paths, c.message, resolved, status, go, rerender);
+        c.go(resolved, status, go);
       }
     });
     return UI.el('section.card.resolve', [
-      UI.el('h2', { text: n === 1 ? 'One change collides with GitHub' : n + ' changes collide with GitHub' }),
+      UI.el('h2', { text: (n === 1 ? 'One change collides with ' : n + ' changes collide with ') + (c.other || 'GitHub') }),
       UI.note('Since you began editing, ' + c.branch + ' has changed ' + (n === 1 ? 'something' : 'things') +
-        ' you changed too. Everything else merges by itself. Say what each should read, then submit again.'),
+        ' you changed too. Everything else merges by itself. Say what each should read, then ' + c.again + '.'),
       files,
-      UI.el('div.actions', [go, UI.btn('Cancel', { onclick: function () { state.conflicts = null; rerender(); } })]),
+      UI.el('div.actions', [go, UI.btn('Cancel', { class: 'btn resolve-cancel', onclick: c.cancel })]),
       status
+    ]);
+  }
+
+  /* A stopped submission's collisions, answered and submitted again. */
+  function submitResolver(rerender) {
+    const c = state.conflicts;
+    return resolverCard({
+      branch: c.branch, files: c.files, verb: 'Submit with these', again: 'submit again',
+      go: function (resolved, status, btn) { submit(c.paths, c.message, resolved, status, btn, rerender); },
+      cancel: function () { state.conflicts = null; rerender(); }
+    });
+  }
+
+  /* In a live session, in place of the submit card. */
+  function sessionCard() {
+    return UI.el('section.card', [
+      UI.el('h2', { text: 'Live session' }),
+      UI.note('In a live session each edit goes to ' + MT.device.get('branch') + ' when you finish it, so there is ' +
+        'nothing to submit here: anything listed below is still on its way. The pull request for the whole session ' +
+        'is opened from the Branches screen, when it is over.'),
+      MT.session.line(),
+      UI.el('div.actions', [UI.el('a.btn', { href: '#/branches', text: 'Branches' })])
     ]);
   }
 
@@ -376,10 +407,14 @@
       UI.el('ul.plain', others)
     ]) : null;
 
+    const live = MT.session.active();
+    if (live) state.conflicts = null;
     if (!drafts.length) {
       state.conflicts = null;
-      UI.fill(host, top.concat([UI.message('No changes on this device for this branch. Turn on Edit in the reader ' +
-        'to change a law, or select a phrase to comment on it.', UI.el('a.btn', { href: '#/books', text: 'Books' })), foot]));
+      UI.fill(host, top.concat([live ? sessionCard() : null,
+        UI.message(live ? 'Nothing is waiting to be shared: every edit made on this device is on the session\'s branch.'
+          : 'No changes on this device for this branch. Turn on Edit in the reader ' +
+            'to change a law, or select a phrase to comment on it.', UI.el('a.btn', { href: '#/books', text: 'Books' })), foot]));
       return;
     }
 
@@ -403,8 +438,9 @@
         ]);
       });
       UI.fill(host, top.concat([
-        state.conflicts ? resolverCard(rerender) : submitCard(drafts, titles, rerender),
-        UI.note(total + (total === 1 ? ' file has' : ' files have') + ' unsubmitted changes, saved on this device.'),
+        live ? sessionCard() : state.conflicts ? submitResolver(rerender) : submitCard(drafts, titles, rerender),
+        UI.note(total + (total === 1 ? ' file has' : ' files have') + (live ? ' changes not shared yet' : ' unsubmitted changes') +
+          ', saved on this device.'),
         sections, foot
       ]));
     }, function (e) {
@@ -412,6 +448,8 @@
       UI.fill(host, top.concat([UI.message(e.message, UI.el('a.btn', { href: '#/settings', text: 'Settings' }), 'error'), foot]));
     });
   }
+
+  MT.changes = { resolver: resolverCard };
 
   UI.route('changes', {
     /* Opened straight from a link, it can come before the drafts have loaded. */

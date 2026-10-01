@@ -39,7 +39,15 @@
    changed is marked where it stands, in green, with its diff and an undo.
 
    BOOKMARKS. Each unit has a ribbon in its right margin, shown on hover and
-   kept once set (bookmarks.js); the selection toolbar offers it too. */
+   kept once set (bookmarks.js); the selection toolbar offers it too.
+
+   IN A LIVE SESSION (session.js) the others' edits arrive while this is
+   open, and each repaints it. A row with an editor open in it is kept as it
+   stands across that (holdRow). If the very thing being edited is what
+   changed, an editor nothing has been typed in simply closes on the new
+   text, and one with typing in it says so: its text is an edit of what it
+   opened on (library.js editFrom), so finishing asks which to keep.
+   Whatever arrived is highlighted for a few seconds (flash). */
 
 (function (MT) {
   'use strict';
@@ -112,16 +120,19 @@
     const c = cell(lang, unitContent(lang, view, href), change ? 'changed' : null);
     if (upstream) { c.classList.add('branched'); c.appendChild(branchBar(ctx, upstream, c)); }
     if (change) c.appendChild(changeBar(ctx, layer, change, c));
+    flash(c, ctx.id, layer, 'law', key);
     if (ctx.editing) {
       c.classList.add('editable');
       c._edit = function () {
         lib.section(ctx.id).then(function (sec) {
           const hit = E.findUnit(sec[layer], key);
           if (!hit) return;
+          const from = sec.raw[layer];
           openEditor(c, {
             lang: lang, body: E.unitBody(hit), label: 'Edit the ' + LAYER_NAME[layer] + ' of ' + F.unitName(key),
             hint: hit.law ? null : 'One paragraph',
-            save: function (b) { return lib.edit(ctx.id, layer, function (doc) { return E.setLaw(doc, layer, key, b); }); },
+            at: { id: ctx.id, layer: layer, kind: 'law', unit: key, began: E.unitBody(hit), was: onBranch(sec, layer, 'law', key) },
+            save: function (b) { return lib.edit(ctx.id, layer, function (doc) { return E.setLaw(doc, layer, key, b); }, from); },
             render: function (b) {
               const s = split(b);
               return unitContent(lang, { label: view.label, text: s.text, extra: s.rest }, href);
@@ -153,16 +164,20 @@
     const el = UI.el('div.note.' + kindOf(layer) + (change ? '.changed' : '') + (upstream ? '.branched' : ''), noteContent(n));
     if (upstream) el.appendChild(branchBar(ctx, upstream, el));
     if (change) el.appendChild(changeBar(ctx, layer, change, el));
+    flash(el, ctx.id, layer, 'note', n.label);
     if (ctx.editing) {
       el.classList.add('editable');
       el._edit = function () {
         lib.section(ctx.id).then(function (sec) {
           const hit = sec[layer] && E.findNote(sec[layer], n.label);
           if (!hit) return;
+          const from = sec.raw[layer];
           openEditor(el, {
             body: E.noteBody(hit.note), label: 'Edit ' + LAYER_NAME[layer] + ' note ' + n.label,
             hint: '[^' + n.label + '] · empty it to delete',
-            save: function (b) { return lib.edit(ctx.id, layer, function (doc) { return E.setNote(doc, layer, n.label, b); }); },
+            at: { id: ctx.id, layer: layer, kind: 'note', unit: n.label, began: E.noteBody(hit.note),
+              was: onBranch(sec, layer, 'note', n.label) },
+            save: function (b) { return lib.edit(ctx.id, layer, function (doc) { return E.setNote(doc, layer, n.label, b); }, from); },
             render: function (b) {
               const s = split(b);
               return noteContent(Object.assign({}, n, { text: s.text, more: s.rest }));
@@ -258,6 +273,75 @@
     return MT.editor.open(host, Object.assign({ onClose: function () { UI.refresh(); } }, opts));
   }
 
+  /* A unit's or a note's body as the branch has it, this device's draft
+     aside; null if it has none. `sec` is the section from lib.section(). */
+  function onBranch(sec, layer, kind, unit) {
+    const text = sec.raw[layer];
+    const doc = !sec.drafts[layer] ? sec[layer] : text === null ? null : F.parse(text, layer);
+    if (!doc) return null;
+    if (kind === 'law') {
+      const u = E.findUnit(doc, unit);
+      return u ? E.unitBody(u) : null;
+    }
+    const n = E.findNote(doc, unit);
+    return n ? E.noteBody(n.note) : null;
+  }
+
+  /* Highlight what has just arrived from someone else in a live session,
+     fading from wherever in its few seconds it has got to. */
+  function flash(el, sec, layer, kind, unit) {
+    const age = MT.session.fresh(sec, layer, kind, unit);
+    if (age < 0) return;
+    el.classList.add('fresh');
+    el.style.animationDelay = -age + 'ms';
+  }
+
+  /* A repaint while an editor is open — in a live session, someone else's
+     edit arriving — would take the editor with it. The row it is in is
+     lifted out first and put back in place of its new self: what is being
+     typed, the caret and the focus all stay. Everything around it is new.
+     → what putBack() needs, or null when no editor is open in this section. */
+  function holdRow(host, id) {
+    if (!MT.editor.active() || !live || live.id !== id || !host.contains(live.grid)) return null;
+    const ed = live.grid.querySelector('.editor');
+    const row = ed && ed.closest('.row.law');
+    if (!row || !row.id) return null;
+    const a = document.activeElement;
+    const focus = a && row.contains(a) ? a : null;
+    return {
+      row: row, focus: focus,
+      sel: focus && typeof focus.selectionStart === 'number' ? [focus.selectionStart, focus.selectionEnd] : null
+    };
+  }
+
+  function putBack(grid, held, raw) {
+    const now = Array.from(grid.querySelectorAll('.row.law')).find(function (r) { return r.id === held.row.id; });
+    /* Has the very thing being edited changed on the branch meanwhile? (Not
+       by this device: its own text coming back is no news.) */
+    const at = MT.editor.at();
+    const theirs = at && at.kind ? onBranch(raw, at.layer, at.kind, at.unit) : null;
+    const changed = !!(at && at.kind) && theirs !== at.was && theirs !== at.began;
+    /* Another chapter now, or the unit has gone: the editor goes too, its
+       text saved. So does one opened on text that has since been replaced
+       with nothing typed in it yet — the new text is what there is to edit. */
+    if (!now || (changed && !at.dirty)) { MT.editor.close(); return; }
+    now.parentNode.replaceChild(held.row, now);
+    if (held.focus) {
+      held.focus.focus({ preventScroll: true });
+      if (held.sel) held.focus.setSelectionRange(held.sel[0], held.sel[1]);
+    }
+    if (!changed) { MT.editor.warn(null); return; }
+    const he = at.layer === 'he' || at.layer === 'hen';
+    const body = theirs === null ? null : at.was === null ? UI.el('div.diff', [UI.el('ins', { text: theirs })])
+      : MT.editor.diff(at.was, theirs);
+    if (body && he) { body.setAttribute('dir', 'rtl'); body.setAttribute('lang', 'he'); }
+    MT.editor.warn([
+      UI.el('strong', { text: 'Someone else changed this while you were editing it.' }),
+      theirs === null ? ' It has been deleted.' : ' It now reads:', body,
+      UI.el('span', { text: 'When you finish, you are asked which to keep.' })
+    ]);
+  }
+
   function today() {
     const d = new Date();
     const two = function (n) { return (n < 10 ? '0' : '') + n; };
@@ -285,6 +369,7 @@
     openEditor(wrap, {
       body: prefix, label: 'New ' + LAYER_NAME[layer] + ' note on ' + on,
       hint: 'New ' + (layer === 'notes' ? 'review note' : 'commentary') + ' on ' + on,
+      at: { id: ctx.id, layer: layer },
       save: function (b) {
         const empty = !E.paragraphs(b).length || b.trim() === prefix.trim();
         if (!label) {
@@ -580,7 +665,8 @@
     if (layers.length) {
       const stale = layers.filter(function (l) { return ctx.raw.stale[l]; });
       out.push(UI.el('p.draftnote', [
-        'Unsubmitted changes here to the ' + layers.map(function (l) { return LAYER_NAME[l]; }).join(', ') + '. ',
+        (MT.session.active() ? 'Changes not shared yet here to the ' : 'Unsubmitted changes here to the ') +
+          layers.map(function (l) { return LAYER_NAME[l]; }).join(', ') + '. ',
         stale.length ? 'The ' + stale.map(function (l) { return LAYER_NAME[l]; }).join(', ') +
           ' changed on the branch after you began; your edits are kept as they are. ' : null,
         UI.el('a', { href: '#/changes', text: 'Review all changes' })
@@ -588,7 +674,8 @@
     }
     if (ctx.editing) {
       out.push(UI.el('p.draftnote.hint', [
-        'Click a law, a paragraph or a note to edit it. Edits are saved on this device as you type. ',
+        'Click a law, a paragraph or a note to edit it. Edits are saved on this device as you type' +
+          (MT.session.active() ? ', and shared with the session as you finish each. ' : '. '),
         MT.device.get('name') ? null : UI.el('a', { href: '#/settings', text: 'Set your name to sign review notes.' })
       ]));
     }
@@ -700,6 +787,7 @@
 
     const editing = !!MT.device.get('editing');
     const grid = UI.el('div.grid' + (sec.pointed ? '.pointed' : '') + (editing ? '.editing' : ''));
+    const held = holdRow(host, raw.id);
 
     const ctx = {
       id: raw.id, sec: sec, raw: raw, grid: grid, editing: editing,
@@ -718,7 +806,7 @@
       UI.el('div.rbar', [pager(ix, meta, sec, chapters, i, true, MT.review.chapters(ctx.branch)),
         UI.el('div.toggles', [viewGroup(grid, raw), UI.el('div.segs', [editToggle(), marksToggle()])])])
     ]);
-    const notes = UI.el('div.rnotes', [branchNote(ctx, up), draftNote(ctx)]);
+    const notes = UI.el('div.rnotes', [MT.session.active() ? MT.session.line() : null, branchNote(ctx, up), draftNote(ctx)]);
     if (!sec.en) notes.appendChild(UI.note('This section has no English file yet.'));
 
     /* The section's opening goes above its first chapter. */
@@ -758,6 +846,7 @@
     hideSel();
     UI.crumbs(crumbs);
     UI.fill(host, [head, notes, grid, UI.el('footer.rfoot', [pager(ix, meta, sec, chapters, i, false)])]);
+    if (held) putBack(grid, held, raw);
     fitHead(head);
     document.title = ((sec.en && sec.en.title) || sec.id) + (cur && chapters.length > 1 ? ' · ' + lib.chapterName(cur) : '') + ' — MT Reader';
 
