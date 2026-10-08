@@ -201,6 +201,7 @@ Plain scripts on a global `MT` namespace, loaded in dependency order by
 | `merge.js` | per-law three-way merge of a draft with the file as it now is, and moving a draft onto a newer text; shared with the Node tools |
 | `submit.js` | submitting: branch, merge, commit, pull request; sharing in a live session; and merging a pull request (no DOM; tested against a fake GitHub) |
 | `icons.js`, `ui.js`, `markdown.js` | inline SVG icons, DOM helper and hash router, inline Markdown to DOM (never `innerHTML`) |
+| `refs.js` | finds the Tanakh references in the text ("Genesis 1:28", "בראשית א,כח") as it is drawn, for `markdown.js` to link to the verse in the [Tanakh Reader](https://yaaqov22.github.io/tanakh-reader/); shared with the Node tools |
 | `store.js` | IndexedDB (`blobs` by SHA, `kv`, `drafts`) |
 | `github.js` | GitHub REST client: reading, and the Git Data and pull request calls |
 | `source.js` | GitHub or local folder, and the offline cache |
@@ -247,6 +248,7 @@ NODE="/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Microsoft/
 "$NODE" tools/test-format.mjs        # unit tests + corpus checks on out/migrated
 "$NODE" tools/test-edit.mjs          # editing tests + a re-save check over the corpus (~30 s)
 "$NODE" tools/test-submit.mjs        # merge tests + submitting, sharing and merging against a fake GitHub
+"$NODE" tools/test-refs.mjs          # the Tanakh references: forms, books, ibid.
 ```
 
 The pointed edition is read from Mechon Mamre's zip (`--niqqud in001.zip` by
