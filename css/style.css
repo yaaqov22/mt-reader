@@ -532,6 +532,16 @@ a.crumb:hover { color: var(--accent); }
 }
 .cell.he .mk { font-family: var(--font-he); font-size: 0.7em; }
 
+/* A reference to the Tanakh, opening the verse in the Tanakh Reader. Quiet
+   until pointed at, so a law dense with verses doesn't read as a page of links. */
+a.ref {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 0.2em;
+}
+a.ref:hover, a.ref:focus-visible { color: var(--accent); text-decoration-style: solid; }
+
 /* Pointed text needs room above and below the letters for the points. */
 .grid.pointed .cell.he { line-height: 1.85; }
 

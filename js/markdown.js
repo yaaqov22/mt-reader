@@ -15,7 +15,12 @@
    brackets, so they read as apparatus rather than as part of the sentence.
    The English writes them escaped because a bare `[4]` is Markdown link
    syntax; the translator's own brackets (`\[money]`) are escaped too and stay
-   ordinary text. */
+   ordinary text.
+
+   THE TANAKH REFERENCES. "(Genesis 1:28)" and "(בראשית א,כח)" in the plain
+   text become links to the verse in the Tanakh Reader (refs.js). They are
+   found as the text is drawn; the files are never changed. A paragraph
+   shares one context, so an "ibid." finds the book named before it. */
 
 (function (MT) {
   'use strict';
@@ -43,16 +48,36 @@
     }
   }
 
-  function breaks(text, parent) {
+  function breaks(text, parent, ctx) {
     text.split('\n').forEach(function (part, i) {
       if (i > 0) parent.appendChild(document.createElement('br'));
-      if (part) parent.appendChild(document.createTextNode(part));
+      if (part) refs(part, parent, ctx);
     });
   }
 
-  function wrap(tag, text, parent) {
+  /* Plain text, with its Tanakh references as links. None inside a link. */
+  function refs(text, parent, ctx) {
+    let at = 0;
+    if (!ctx.inLink) {
+      MT.refs.find(text, ctx).forEach(function (r) {
+        if (r.start > at) parent.appendChild(document.createTextNode(text.slice(at, r.start)));
+        const a = document.createElement('a');
+        a.className = 'ref';
+        a.href = r.href;
+        a.title = r.title;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = text.slice(r.start, r.end);
+        parent.appendChild(a);
+        at = r.end;
+      });
+    }
+    if (at < text.length) parent.appendChild(document.createTextNode(text.slice(at)));
+  }
+
+  function wrap(tag, text, parent, ctx) {
     const el = document.createElement(tag);
-    inline(text, el);
+    inline(text, el, ctx);
     parent.appendChild(el);
   }
 
@@ -64,38 +89,39 @@
     parent.appendChild(s);
   }
 
-  function inline(text, parent) {
+  function inline(text, parent, ctx) {
+    ctx = ctx || {};
     let rest = String(text === null || text === undefined ? '' : text);
     for (;;) {
       const m = INLINE.exec(rest);
       if (!m || m[0].length === 0) break;
-      if (m.index > 0) breaks(rest.slice(0, m.index), parent);
+      if (m.index > 0) breaks(rest.slice(0, m.index), parent, ctx);
 
       if (m[1] !== undefined) marker(m[1], 'Vilna halakhah ' + m[1], parent);
       else if (m[2] !== undefined) marker(m[2], 'Vilna halakhah ' + MT.format.hebToNum(m[2]), parent);
       else if (m[3] !== undefined) parent.appendChild(document.createTextNode(m[3]));
       else if (m[4] !== undefined) {
         const b = document.createElement('strong');
-        wrap('em', m[4], b);
+        wrap('em', m[4], b, ctx);
         parent.appendChild(b);
       }
-      else if (m[5] !== undefined) wrap('strong', m[5], parent);
-      else if (m[6] !== undefined) wrap('em', m[6], parent);
+      else if (m[5] !== undefined) wrap('strong', m[5], parent, ctx);
+      else if (m[6] !== undefined) wrap('em', m[6], parent, ctx);
       else if (m[8] !== undefined) {
         const href = safeHref(m[8]);
-        if (!href) breaks(m[0], parent);
+        if (!href) breaks(m[0], parent, ctx);
         else {
           const a = document.createElement('a');
           a.href = href;
           a.target = '_blank';
           a.rel = 'noopener noreferrer';
-          inline(m[7] || href, a);
+          inline(m[7] || href, a, { inLink: true });
           parent.appendChild(a);
         }
       }
       rest = rest.slice(m.index + m[0].length);
     }
-    if (rest) breaks(rest, parent);
+    if (rest) breaks(rest, parent, ctx);
   }
 
   MT.md = {
