@@ -9,6 +9,12 @@
     const t = MT.device.get('theme');
     if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
     else document.documentElement.removeAttribute('data-theme');
+    const p = MT.device.get('palette');
+    if (p && p !== 'sepia') document.documentElement.setAttribute('data-palette', p);
+    else document.documentElement.removeAttribute('data-palette');
+    /* The browser's own chrome follows the page's background. */
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   };
 
   function topbar() {

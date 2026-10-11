@@ -85,6 +85,160 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
+/* The other colour schemes. Each is a data-palette on the root (sepia, above,
+   is the default and has none), with its light and dark values declared the
+   same three ways. A scheme's light and dark blocks set the same colours, so
+   whichever wins leaves nothing of the other behind. --bad, --edit, --ins and
+   --del mean the same in every scheme; --up changes only where it would be
+   lost against a blue accent. */
+
+:root[data-palette="blue"] {
+  --bg: #f5f8fc;
+  --panel: #ffffff;
+  --panel-lit: #eaf0f8;
+  --line: #d5dfec;
+  --line-soft: #e5ecf5;
+  --text: #16202e;
+  --dim: #4f5f75;
+  --faint: #8593a6;
+  --accent: #2a5694;
+  --accent-soft: #dce6f4;
+  --target: #fbf1c9;
+  --up: #1d7a76;
+  --up-soft: #d8efed;
+  --shadow: 0 1px 2px rgba(22, 32, 46, 0.06), 0 4px 16px rgba(22, 32, 46, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="blue"]:not([data-theme="light"]) {
+    --bg: #0f141c;
+    --panel: #161d28;
+    --panel-lit: #1e2734;
+    --line: #2a3546;
+    --line-soft: #212b39;
+    --text: #e3e9f2;
+    --dim: #9aa8bb;
+    --faint: #6b788b;
+    --accent: #7fa7e0;
+    --accent-soft: #1d2c44;
+    --target: #33301f;
+    --up: #6cc5bd;
+    --up-soft: #173230;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+}
+
+:root[data-palette="blue"][data-theme="dark"] {
+  --bg: #0f141c;
+  --panel: #161d28;
+  --panel-lit: #1e2734;
+  --line: #2a3546;
+  --line-soft: #212b39;
+  --text: #e3e9f2;
+  --dim: #9aa8bb;
+  --faint: #6b788b;
+  --accent: #7fa7e0;
+  --accent-soft: #1d2c44;
+  --target: #33301f;
+  --up: #6cc5bd;
+  --up-soft: #173230;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+:root[data-palette="gray"] {
+  --bg: #f6f6f6;
+  --panel: #ffffff;
+  --panel-lit: #eeeeee;
+  --line: #dcdcdc;
+  --line-soft: #e8e8e8;
+  --text: #1f1f1f;
+  --dim: #5e5e5e;
+  --faint: #929292;
+  --accent: #4b5563;
+  --accent-soft: #e4e6e9;
+  --target: #f3efd6;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="gray"]:not([data-theme="light"]) {
+    --bg: #161616;
+    --panel: #1e1e1e;
+    --panel-lit: #272727;
+    --line: #333333;
+    --line-soft: #2a2a2a;
+    --text: #e6e6e6;
+    --dim: #a3a3a3;
+    --faint: #737373;
+    --accent: #b8c0ca;
+    --accent-soft: #2c3036;
+    --target: #36332a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+}
+
+:root[data-palette="gray"][data-theme="dark"] {
+  --bg: #161616;
+  --panel: #1e1e1e;
+  --panel-lit: #272727;
+  --line: #333333;
+  --line-soft: #2a2a2a;
+  --text: #e6e6e6;
+  --dim: #a3a3a3;
+  --faint: #737373;
+  --accent: #b8c0ca;
+  --accent-soft: #2c3036;
+  --target: #36332a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+:root[data-palette="mono"] {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel-lit: #f2f2f2;
+  --line: #cfcfcf;
+  --line-soft: #e6e6e6;
+  --text: #000000;
+  --dim: #444444;
+  --faint: #777777;
+  --accent: #000000;
+  --accent-soft: #e6e6e6;
+  --target: #ebebeb;
+  --shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="mono"]:not([data-theme="light"]) {
+    --bg: #000000;
+    --panel: #000000;
+    --panel-lit: #141414;
+    --line: #3a3a3a;
+    --line-soft: #222222;
+    --text: #ffffff;
+    --dim: #bbbbbb;
+    --faint: #888888;
+    --accent: #ffffff;
+    --accent-soft: #262626;
+    --target: #262626;
+    --shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+}
+
+:root[data-palette="mono"][data-theme="dark"] {
+  --bg: #000000;
+  --panel: #000000;
+  --panel-lit: #141414;
+  --line: #3a3a3a;
+  --line-soft: #222222;
+  --text: #ffffff;
+  --dim: #bbbbbb;
+  --faint: #888888;
+  --accent: #ffffff;
+  --accent-soft: #262626;
+  --target: #262626;
+  --shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
 /* ------------------------------------------------------------------ base */
 
 * { box-sizing: border-box; }
@@ -281,8 +435,8 @@ a.crumb:hover { color: var(--accent); }
 
 /* ---------------------------------------------------------------- main */
 
-#main { max-width: 1480px; margin: 0 auto; padding-bottom: 48px; }
-.screen { display: none; padding: 16px 20px 0; }
+#main { padding-bottom: 48px; }
+.screen { display: none; max-width: 1480px; margin: 0 auto; padding: 16px 20px 0; }
 .screen.on { display: block; }
 #screen-books, #screen-settings { max-width: 860px; margin: 0 auto; }
 
@@ -344,13 +498,18 @@ a.crumb:hover { color: var(--accent); }
 
 /* -------------------------------------------------------------- reader */
 
+/* The reader's header spans the window, as the top bar does; what is
+   under it keeps to the width the screens have. */
+#screen-read { max-width: none; }
+#screen-read > :not(.rhead) { max-width: 1440px; margin-left: auto; margin-right: auto; }
+
 /* The header sticks under the top bar (which says where you are): the
-   chapter and the buttons. reader.js measures it into --rhead-h so a row
-   scrolled to lands clear of it. */
+   section and chapter, and the buttons. reader.js measures it into
+   --rhead-h so a row scrolled to lands clear of it. */
 .rhead {
   position: sticky;
   top: calc(var(--topbar-h) + env(safe-area-inset-top));
-  z-index: 15;
+  z-index: 19;   /* over the notes pane (18), so its menus open over it too; under the top bar */
   margin: -16px -20px 0;
   padding: 8px 20px 8px;
   background: color-mix(in srgb, var(--bg) 92%, transparent);
@@ -360,15 +519,113 @@ a.crumb:hover { color: var(--accent); }
 .rbar { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
 .pager { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .pager .iconbtn { width: 32px; height: 32px; min-width: 32px; }
-.chsel {
+
+/* The header's names: the section, opening the contents, and the chapter,
+   opening the section's chapters. */
+.pager .navwrap + .navwrap, .pager .navwrap + .navtext { margin-left: 4px; }
+.navwrap { position: relative; min-width: 0; }
+.navbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: min(40vw, 340px);
   min-height: 32px;
-  padding: 3px 8px;
+  padding: 3px 6px 3px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--panel);
-  max-width: min(46vw, 360px);
+  color: var(--text);
+  font-family: var(--font-ui);
   font-size: 14px;
+  cursor: pointer;
 }
+.navbtn:hover { border-color: var(--faint); }
+.navbtn[aria-expanded="true"] { border-color: var(--accent); }
+.navbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.navbtn svg { flex: none; width: 16px; height: 16px; color: var(--dim); }
+.navtext { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.navtext.solo { padding: 0 8px; color: var(--dim); font-size: 14px; }
+.navpop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: min(640px, calc(100vw - 24px));
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.navpop.chapters { width: min(420px, calc(100vw - 24px)); padding-top: 10px; }
+.navpop .book { margin: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.navpop .book + .book { border-top: 1px solid var(--line-soft); }
+.navpop .book > summary { padding: 10px 8px; }
+.navpop .book.cur > summary .book-en { color: var(--accent); }
+.navpop .secs { padding: 0 0 6px; }
+.navpop .tbook.cur > summary, .navpop .tsec.cur { background: var(--accent-soft); }
+/* Phones: the pop-ups hang the width of the screen below the header. */
+@media (max-width: 640px) {
+  .navwrap { position: static; }
+  .navpop, .navpop.chapters {
+    position: fixed;
+    top: calc(var(--topbar-h) + env(safe-area-inset-top) + var(--rhead-h, 50px) + 4px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100vh - var(--topbar-h) - var(--rhead-h, 50px) - 24px);
+  }
+}
+
+/* The contents: a section opening on its chapters, or a link straight to
+   its one. */
+.tbook > summary, .tsec {
+  display: grid;
+  grid-template-columns: 1fr auto 80px;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  list-style: none;
+}
+.tbook > summary::-webkit-details-marker { display: none; }
+.tbook > summary:hover, .tsec:hover { background: var(--panel-lit); }
+.tbook[open] > summary { color: var(--accent); }
+.chgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 4px;
+  padding: 4px 10px 12px;
+}
+.navpop.chapters .chgrid { padding: 0; }
+.chnum {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border-radius: 6px;
+  background: var(--panel-lit);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  text-decoration: none;
+}
+/* An unnumbered chapter, by its name, across the grid. */
+.chnum.chname { grid-column: 1 / -1; justify-content: flex-start; padding: 6px 12px; font-family: var(--font); font-size: 14.5px; }
+.chnum:hover { background: var(--accent-soft); color: var(--accent); }
+.chnum[aria-current="page"] { background: var(--accent); color: var(--bg); font-weight: 600; }
+.chnum.up { box-shadow: inset 0 -2px 0 var(--up); }
+@media (max-width: 640px) {
+  .tbook > summary, .tsec { grid-template-columns: 1fr; gap: 2px; }
+  .tbook .sec-meta { display: none; }
+}
+
 .toggles { display: flex; gap: 8px; align-items: center; }
 
 /* A button group: icons (or a letter standing for one) in one bordered strip. */
@@ -396,8 +653,58 @@ a.crumb:hover { color: var(--accent); }
 .seg[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .seg:disabled { opacity: 0.35; cursor: default; background: none; }
 .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.seg.editseg[aria-pressed="true"] { background: var(--ins); color: var(--edit); }
 .seg.markseg[aria-pressed="true"] { background: var(--up-soft); color: var(--up); }
+
+/* The Display menu: niqqud, which texts show, where the Hebrew and the
+   notes pane are. Its button shows the Hebrew as it is showing. */
+.dispwrap { position: relative; }
+.seg.dispbtn { width: auto; gap: 2px; padding: 0 6px 0 10px; }
+.seg.dispbtn .he { font-family: var(--font-he); font-size: 19px; line-height: 1; color: var(--text); }
+.seg.dispbtn svg { width: 15px; height: 15px; }
+.seg.dispbtn[aria-expanded="true"] { background: var(--panel-lit); }
+.dispmenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: 252px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  font-family: var(--font-ui);
+}
+.dm-head { margin: 2px 4px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+.dm-head:not(:first-child) { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.dm-sub { margin: 5px 4px 0; font-size: 12.5px; line-height: 1.4; color: var(--dim); }
+.dispmenu .hemodes { display: flex; }
+.hemodes .seg.glyph.he { flex: 1; width: auto; font-size: 18px; }
+.dispmenu .dm-segs { display: flex; }
+.dm-segs .seg { flex: 1; width: auto; font-family: var(--font-ui); font-size: 13px; }
+.dm-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.dm-item:hover { background: var(--panel-lit); }
+.dm-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.dm-check { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 1px solid var(--line); border-radius: 4px; color: transparent; }
+.dm-check svg { width: 14px; height: 14px; stroke-width: 2.4; }
+.dm-item[aria-checked="true"] .dm-check { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.dm-one .dm-check { border-radius: 50%; }
+@media (max-width: 480px) {
+  .dispwrap { position: static; }
+  .dispmenu { right: 8px; top: calc(100% + 2px); }
+}
 
 .rnotes:not(:empty) { padding-top: 2px; }
 
@@ -410,32 +717,32 @@ a.crumb:hover { color: var(--accent); }
 
 /* The grid. Every row's text repeats the same column template, which is
    what keeps a Hebrew law and its translation starting on the same line.
-   A hidden language drops out of the template, and a hidden notes layer out
-   of the block beneath, unless the row is opened (`show-*` classes and
-   .open, set by reader.js). */
+   A hidden language drops out of the template (`show-*` classes, set by
+   reader.js). A law's notes are in the pane; general remarks open under
+   their marker (.open). */
 .grid .row { padding: 12px 6px; border-bottom: 1px solid var(--line-soft); }
 .grid .row .text { display: grid; grid-template-columns: var(--cols); gap: 28px; }
 .grid.cols-1 .row { max-width: 820px; margin-left: auto; margin-right: auto; }
-.grid:not(.show-he) .cell.he,
-.grid:not(.show-en) .cell.en,
-.grid:not(.show-co) .row:not(.open) .cell.co,
-.grid:not(.show-notes) .row:not(.open) .cell.notes,
+/* The Hebrew at the right (the Display menu's choice): last in the row. */
+.grid.he-right .row .text > .cell.he { order: 1; }
+.grid:not(.show-he) .text > .cell.he,
+.grid:not(.show-en) .text > .cell.en,
+.row.general:not(.open) .cell.co,
 .cell.co.none, .cell.notes.none { display: none; }
 
 .row.law { scroll-margin-top: calc(var(--topbar-h) + var(--rhead-h, 90px) + 12px); }
 .row.law.target { background: var(--target); border-radius: var(--radius-sm); }
+/* A law is chosen by its row: lit on hover, held when chosen. */
+.grid .row.law:not(.vpanel) { cursor: pointer; border-radius: var(--radius-sm); }
+.grid .row.law:not(.vpanel):hover { background: var(--panel-lit); }
+.grid .row.law.sel:not(.vpanel) { background: var(--accent-soft); }
+.row.chhead h3 { font-size: 19px; color: var(--dim); }
+.row.chhead .cell.he h3 { font-family: var(--font-he); font-size: 21px; }
+.row.general { padding-top: 6px; padding-bottom: 6px; }
+.row.general .cell.co p { max-width: 760px; }
 
-/* A unit's right margin: its note counts (reader.js marker()), then the
-   bookmark ribbon, shown on hover (always, faintly, on touch screens) and
-   kept once set. A column of the row's own, beside both the text and the
-   notes beneath it, so a short row grows to hold it rather than overlap. */
-.grid .row.law { display: grid; grid-template-columns: minmax(0, 1fr) 30px; column-gap: 6px; }
-.row.law > .text { grid-column: 1; grid-row: 1; }
-.row.law > .ann { grid-column: 1; grid-row: 2; }
-.row.chhead, .row.general { padding-right: 42px; }   /* 6px + the margin, so they line up */
-.rmargin { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.rmargin .annmark { flex-direction: column; align-items: center; gap: 7px; width: 30px; margin: 0; padding: 5px 0; border-radius: var(--radius-sm); }
-.rmargin .annmark > span { flex-direction: column; gap: 2px; font-size: 11px; line-height: 1; }
+/* The bookmark ribbon, in the pane's bar: filled once set. A bookmarked
+   law's number is underlined. */
 .bmk {
   display: flex;
   align-items: center;
@@ -448,31 +755,50 @@ a.crumb:hover { color: var(--accent); }
   background: none;
   color: var(--faint);
   cursor: pointer;
-  opacity: 0;
 }
 .bmk svg { width: 18px; height: 18px; }
-.row.law:hover .bmk, .bmk:focus-visible { opacity: 1; }
 .bmk:hover { color: var(--accent); background: var(--panel-lit); }
 .bmk:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.bmk[aria-pressed="true"] { opacity: 1; color: var(--accent); }
+.bmk[aria-pressed="true"] { color: var(--accent); }
 .bmk[aria-pressed="true"] svg path { fill: currentColor; }
-.row.law.marked { box-shadow: inset -3px 0 0 var(--accent-soft); }
-@media (hover: none) { .bmk { opacity: 0.45; } }
-.row.chhead h3 { font-size: 19px; color: var(--dim); }
-.row.chhead .cell.he h3 { font-family: var(--font-he); font-size: 21px; }
-.row.general { padding-top: 6px; padding-bottom: 6px; }
-.grid.show-co .row.general .annmark { display: none; }
-.row.general .cell.co p { max-width: 760px; }
+.row.law.marked .text > .cell > p > .label { padding: 0 3px; border-radius: 3px; box-shadow: inset 0 -2px 0 var(--accent); }
+.row.law.marked .text > .cell > p > .label.noted { padding: 0 5px; border-radius: 999px; }
 
-/* Beneath the text: commentary, then review notes, each in columns. */
+/* A law with notes: its number in an outlined pill, bold, in the accent
+   (green when this device has changed its notes, blue when the branch
+   has). */
+.label.noted {
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.noted.changed { color: var(--edit); }
+.noted.branched { color: var(--up); }
+
+/* In the pane (or under a general remarks marker): commentary, then review
+   notes, each in columns. */
 .ann .cell { margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .row.general .ann .cell { margin-top: 4px; }
 .annhead { margin-bottom: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+/* A block's heading in the pane folds it: a button the width of the block. */
+button.annhead {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 2px 0; border: 0; background: none;
+  font-family: var(--font-ui); text-align: start; cursor: pointer;
+}
+button.annhead:hover .annhead-name { text-decoration: underline; text-underline-offset: 3px; }
+button.annhead:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+button.annhead > svg { width: 14px; height: 14px; flex: none; stroke-width: 2.2; transition: transform 0.15s; }
+.annhead-n { font-weight: 500; letter-spacing: 0; opacity: 0.8; }
+.cell.folded > button.annhead { margin-bottom: 0; }
+.cell.folded > button.annhead > svg { transform: rotate(-90deg); }
+.cell.folded > :not(.annhead) { display: none; }
 .cell.notes .annhead { color: var(--accent); }
 .notelist { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px 28px; align-items: start; }
 .notelist div.note { margin: 0; }
 
-/* The marker: how many notes a hidden layer has on this unit. */
+/* The marker that opens general remarks. */
 .annmark {
   display: inline-flex;
   gap: 12px;
@@ -489,8 +815,6 @@ a.crumb:hover { color: var(--accent); }
 .annmark:hover, .annmark[aria-expanded="true"] { border-color: var(--line); color: var(--dim); background: var(--panel); }
 .annmark > span { display: inline-flex; align-items: center; gap: 4px; }
 .annmark svg { width: 15px; height: 15px; }
-.annmark .mk-notes { color: var(--accent); }
-.annmark .changed { color: var(--edit); }
 .annmark:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .cell { min-width: 0; }
@@ -552,17 +876,191 @@ div.note p { margin: 0 0 0.5em; }
 .note-range { font-size: 12px; color: var(--faint); }
 .co-head { font-size: 15px; margin: 0 0 6px; color: var(--text); }
 
+/* ------------------------------------------------------------ the pane */
+
+/* The pane's bar: the law, and the tools for it. */
+.vp-hint, .vp-none { margin: 0; color: var(--faint); font-size: 14px; line-height: 1.5; }
+.vp-ref { display: flex; flex-direction: column; gap: 1px; color: var(--text); text-decoration: none; font-family: var(--font); font-size: 17px; }
+.vp-ref:hover strong { color: var(--accent); }
+.vp-sec { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); font-size: 14px; }
+.vp-tools { display: flex; align-items: center; gap: 0; }
+.vp-tools .iconbtn { width: 30px; height: 30px; min-width: 30px; }
+.vp-tools .iconbtn svg { width: 18px; height: 18px; }
+.vp-tools .iconbtn:disabled { opacity: 0.3; cursor: default; }
+
+/* The notes pane: fixed along the bottom, the full width. Its bar is always
+   there; open, it is as high as reader.js sets it (dragged by its top edge),
+   the notes scrolling inside. body.paned leaves room for it at the foot of
+   the page, --pane-space being its height. */
+.screen .grid > .vpanel.pane {
+  position: fixed;
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 18;
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0 0 env(safe-area-inset-bottom);
+  overflow: hidden;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--panel);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+  cursor: auto;
+}
+.pane-grip { display: none; }
+.pane.open-pane .pane-grip {
+  display: block;
+  flex: none;
+  position: relative;
+  height: 12px;
+  margin-bottom: -6px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.pane-grip::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 40px;
+  height: 4px;
+  margin-left: -20px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.pane-grip:hover::after, .pane.dragging .pane-grip::after { background: var(--faint); }
+.pane-grip:focus-visible { outline: none; }
+.pane-grip:focus-visible::after { background: var(--accent); }
+.pane.dragging { user-select: none; }
+.pane-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px 12px;
+  flex: none;
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 6px 16px 6px 10px;
+  cursor: pointer;
+}
+.pane.open-pane .pane-bar { border-bottom: 1px solid var(--line-soft); }
+.pane-toggle { flex: none; width: 32px; height: 32px; min-width: 32px; }
+.pane-bar .vp-ref { flex-direction: row; align-items: baseline; gap: 10px; font-size: 16px; min-width: 0; }
+.pane-hint { color: var(--faint); font-size: 14px; }
+.pane-count { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; color: var(--faint); font-family: var(--font-ui); font-size: 13px; }
+.pane-count > span { display: inline-flex; align-items: center; gap: 4px; }
+.pane-count svg { width: 15px; height: 15px; }
+.pane-count .mk-notes { color: var(--accent); }
+.pane-bar .vp-tools { margin-inline-start: auto; }
+.pane-body { display: none; }
+.pane.open-pane .pane-body {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 4px 20px 16px 52px;
+}
+.pane .notelist { grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+.pane .ann .cell:first-child, .pane .vp-hint, .pane .vp-none { margin-top: 10px; }
+.pane .ann .cell.none + .cell { margin-top: 10px; }
+body.paned.pane-bottom .screen.on { padding-bottom: calc(var(--pane-space, 48px) + 16px); }
+body.paned.pane-bottom .toast { bottom: calc(var(--pane-space, 48px) + 16px); }
+
+/* At a side: over the text, which keeps its width, from under the reader's
+   header to the foot of the screen, its grip down its inner edge. Closed, it
+   is a strip of the bar's controls, one above another. */
+.screen .grid > .vpanel.pane.at-left,
+.screen .grid > .vpanel.pane.at-right {
+  top: calc(var(--topbar-h) + env(safe-area-inset-top) + var(--rhead-h, 50px));
+  border-top: 0;
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.06);
+}
+.screen .grid > .vpanel.pane.at-left { right: auto; border-right: 1px solid var(--line); }
+.screen .grid > .vpanel.pane.at-right { left: auto; border-left: 1px solid var(--line); }
+.pane.at-left.open-pane .pane-grip, .pane.at-right.open-pane .pane-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 10px;
+  height: auto;
+  margin: 0;
+  cursor: ew-resize;
+}
+.pane.at-left .pane-grip { right: 0; }
+.pane.at-right .pane-grip { left: 0; }
+.pane.at-left .pane-grip::after, .pane.at-right .pane-grip::after {
+  top: 50%;
+  left: 3px;
+  width: 4px;
+  height: 40px;
+  margin: -20px 0 0;
+}
+.pane.at-left .pane-bar, .pane.at-right .pane-bar { flex-wrap: wrap; max-width: none; padding: 8px 14px 8px 8px; }
+.pane.at-right .pane-bar { padding-left: 14px; }
+.pane.at-left .pane-bar .vp-ref, .pane.at-right .pane-bar .vp-ref { flex-direction: column; gap: 0; }
+.pane.at-left .pane-body, .pane.at-right .pane-body { max-width: none; padding: 4px 18px 16px; }
+.pane.at-left .notelist, .pane.at-right .notelist { grid-template-columns: minmax(0, 1fr); }
+.pane.at-left:not(.open-pane) .pane-bar, .pane.at-right:not(.open-pane) .pane-bar {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 10px;
+  width: 44px;
+  height: 100%;
+  padding: 8px 0;
+}
+.pane.at-left:not(.open-pane) .pane-bar > .vp-ref,
+.pane.at-right:not(.open-pane) .pane-bar > .vp-ref,
+.pane.at-left:not(.open-pane) .pane-hint,
+.pane.at-right:not(.open-pane) .pane-hint,
+.pane.at-left:not(.open-pane) .pane-count.none,
+.pane.at-right:not(.open-pane) .pane-count.none { display: none; }
+.pane.at-left:not(.open-pane) .pane-count, .pane.at-right:not(.open-pane) .pane-count {
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+}
+.pane.at-left:not(.open-pane) .pane-count > span, .pane.at-right:not(.open-pane) .pane-count > span { flex-direction: column; gap: 2px; }
+.pane.at-left:not(.open-pane) .vp-tools, .pane.at-right:not(.open-pane) .vp-tools { flex-direction: column; margin: auto 0 0; }
+/* The open pane lies over the text, but the closed strip leaves it room:
+   45px of strip, less the screen's own 20px, and a little more. */
+.grid:has(> .vpanel.pane.at-left:not(.open-pane)),
+.screen:has(> .grid > .vpanel.pane.at-left:not(.open-pane)) > .rnotes { padding-left: 32px; }
+.grid:has(> .vpanel.pane.at-right:not(.open-pane)),
+.screen:has(> .grid > .vpanel.pane.at-right:not(.open-pane)) > .rnotes { padding-right: 32px; }
+@media (max-width: 640px) {
+  .pane-bar { gap: 8px; padding: 4px 4px 4px 4px; }
+  .pane-bar .vp-ref { flex: none; font-size: 15px; }
+  .pane-bar .vp-sec { display: none; }
+  .pane-bar .vp-tools .iconbtn { width: 28px; min-width: 28px; }
+  .pane.open-pane .pane-body { padding: 4px 14px 14px; }
+  .pane-grip { height: 18px; }
+  .pane.open-pane .pane-grip { height: 18px; margin-bottom: -10px; }
+  .pane-grip::after { top: 6px; }
+}
+
 /* Narrow screens: one column, the cells of a law stacked. */
 @media (max-width: 900px) {
   .screen { padding: 12px 14px 0; }
   .rhead { margin: -12px -14px 0; padding: 6px 14px; }
   .grid .row .text { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .grid.he-right .row .text > .cell.he { order: 0; }   /* stacked, the Hebrew first */
   .cell.he { font-size: 20px; }
 }
-/* Phones: chapter and buttons on one line; the footer keeps prev/next. */
+/* Phones: the names and arrows above the buttons. */
 @media (max-width: 480px) {
-  .rhead .pager .pg { display: none; }
-  .rhead .chsel { max-width: 34vw; }
+  .rhead .navbtn { max-width: 34vw; }
   .rbar { gap: 6px; }
   .toggles { gap: 6px; }
   .seg { width: 30px; }
@@ -573,14 +1071,36 @@ div.note p { margin: 0 0 0.5em; }
 
 
 .draftnote { font-size: 13.5px; color: var(--dim); margin: 10px 0 0; }
-.draftnote.hint { color: var(--faint); }
 
-/* In edit mode what can be edited says so on hover. */
-.grid.editing .cell.editable,
-.grid.editing .note.editable { cursor: text; border-radius: 4px; }
-.grid.editing .cell.editable:hover,
-.grid.editing .note.editable:hover { background: var(--panel-lit); box-shadow: 0 0 0 4px var(--panel-lit); }
-.cell.editing:hover, .note.editing:hover { background: none !important; box-shadow: none !important; }
+/* At the end of a law's text, its pencil: there on the row pointed at or
+   chosen (on touch screens, only the chosen), out of the way otherwise. */
+.cell-edit {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  margin-inline-start: 4px;
+  vertical-align: middle;
+  color: var(--faint);
+  opacity: 0;
+}
+.cell-edit svg { width: 15px; height: 15px; }
+.row.law:hover .cell-edit, .row.law.sel .cell-edit, .cell-edit:focus-visible { opacity: 1; }
+.cell-edit:hover { color: var(--accent); }
+@media (hover: none) {
+  .row.law:hover:not(.sel) .cell-edit { opacity: 0; }
+}
+
+/* Under a note, its pencil: faint until the note is hovered or the pencil
+   focused (always, faintly, on touch screens). */
+.note-tools { display: flex; justify-content: flex-end; margin-top: 2px; }
+.note-edit { width: 26px; height: 26px; min-width: 26px; color: var(--faint); opacity: 0; }
+.note-edit svg { width: 15px; height: 15px; }
+div.note:hover .note-edit, .note-edit:focus-visible { opacity: 1; }
+.note-edit:hover { color: var(--accent); }
+@media (hover: none) { .note-edit { opacity: 0.6; } }
+/* The pane's add buttons take their layer's colour. */
+.vp-add.add-notes { color: var(--accent); }
 
 /* A changed law or note: a green rule on its reading edge, drawn outside the
    text so that the columns stay aligned. */
@@ -689,8 +1209,6 @@ div.note.branched.changed { border-left-color: var(--edit); }
 .diff ins { background: var(--ins); text-decoration: none; border-radius: 3px; }
 .diff del { background: var(--del); text-decoration: line-through; text-decoration-color: var(--bad); border-radius: 3px; }
 
-.addnote { display: flex; gap: 14px; margin-top: 8px; opacity: 0.55; }
-.row:hover .addnote, .addnote:focus-within { opacity: 1; }
 
 .editor { width: 100%; }
 .edit-area {

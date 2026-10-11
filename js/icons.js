@@ -71,8 +71,20 @@
     bookmark: function () {
       return svg('<path d="M6.5 3.5h11v17l-5.5-4.5-5.5 4.5z"/>');
     },
+    /* The comment and the note, with a plus in place of the lines: adding one. */
+    commentAdd: function () {
+      return svg('<path d="M4.5 5.5h15v10h-9l-4.5 4v-4h-1.5z"/><path d="M12 7.5v5.5M9.25 10.25h5.5"/>');
+    },
+    noteAdd: function () {
+      return svg('<path d="M5 4.5h14v9.5l-5 5.5H5z"/><path d="M14 19.5V14h5"/><path d="M10.5 6.5v6M7.5 9.5h6"/>');
+    },
     prev: function () { return svg('<path d="m14.5 6-6 6 6 6"/>'); },
-    next: function () { return svg('<path d="m9.5 6 6 6-6 6"/>'); }
+    next: function () { return svg('<path d="m9.5 6 6 6-6 6"/>'); },
+    chevron: function () { return svg('<path d="m7 10 5 5 5-5"/>'); },
+    check: function () { return svg('<path d="m5 12.5 4.5 4.5L19 7.5"/>'); },
+    close: function () { return svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'); },
+    up: function () { return svg('<path d="m6 14.5 6-6 6 6"/>'); },
+    down: function () { return svg('<path d="m6 9.5 6 6 6-6"/>'); }
   };
 
 })(window.MT);
