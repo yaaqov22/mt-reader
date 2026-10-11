@@ -58,19 +58,32 @@ No build step. Serve the folder over HTTP and open `index.html`.
 |---|---|
 | `#/books` | table of contents |
 | `#/read/1-1/3` | Foundations of the Torah, chapter 3 |
-| `#/read/1-1/3/5` | same, scrolled to law 5 |
+| `#/read/1-1/3/5` | same, scrolled to law 5, its notes open in the pane |
 | `#/search/<query>` | search results; `/he.en.co~3~w` after it picks layers, book, whole words |
 | `#/read/1-1/3/5/<query>` | law 5 with the query highlighted (where results lead) |
 | `#/changes` | every draft on this device for the branch being read, and submitting them |
 | `#/branches` | open pull requests and branches to read, what the branch being read changes, and live sessions |
-| `#/settings` | source, token, your name, offline, theme |
+| `#/settings` | source, token, your name, offline, theme and colours |
 
-← and → move between chapters; / opens search.
+← and → move between chapters; j and k move the notes pane to the next and
+previous law, Esc closes it; / opens search.
 
-**Editing.** The pencil button in the chapter bar turns on edit mode: click a
-law's Hebrew or English, or a note, to edit it in place, and use *+
-commentary* / *+ review note* under any law. Selecting a phrase in a law (in
-either mode) offers *Comment* and *Review note* with the phrase quoted and the
+**Reading.** The header names the section and the chapter between the arrows.
+The section's name opens the contents (every book, each section opening on a
+grid of its chapters) to jump anywhere; the chapter's opens the section's
+chapters. The Display menu beside them picks niqqud, the texts (Hebrew,
+English or both), which side the Hebrew is on, and where the notes pane is.
+Clicking a law chooses it, and its commentary and review notes show in the
+**notes pane**, along the bottom or down either side, opened and closed from
+its bar and resized from its edge (kept on the device). A law with notes has
+its number circled, green when you have changed them, blue when the branch
+has. Settings has four colour schemes (sepia, blue, gray, black and white),
+each light and dark.
+
+**Editing.** There is no edit mode. A law's Hebrew and English each end in a
+pencil (on the row pointed at or chosen) that opens it in place; each note in
+the pane has its own; the pane's bar adds commentary or a review note to its
+law. Selecting a phrase in a law offers *Comment* and *Review note* with the phrase quoted and the
 next free note number filled in; review notes are signed `**name** date -`
 with the name from Settings. With niqqud on, the pointed Hebrew is what gets
 edited. Text saves as you type; Ctrl+Enter or Esc closes the editor.
@@ -128,9 +141,8 @@ sections it touched are tagged in the contents, and in the reader each
 changed law or note has a blue rule with *diff* (the branch button turns
 the marks off; changed chapters are flagged in the chapter list). Your own
 drafts are still green, on top. Drafts belong to the branch they were made
-on, so switching never mixes them. Review notes have their own column
-(*Notes*), which steps aside in sections that have none, except in edit
-mode.
+on, so switching never mixes them. Review notes have their own block in the
+notes pane, beside the commentary.
 
 **Live sessions** (GitHub source only) are for studying together: several
 people read the same text, any of them edits, and each edit shows on the
@@ -173,9 +185,8 @@ A token that can only read can still watch a session. What the session has
 changed is marked in blue as for any branch, so the diff of every edit is a
 click away.
 
-**Bookmarks** mark where a work session stopped. Each law or paragraph has a
-ribbon in its right margin (shown on hover, kept once set; the counts of any
-hidden commentary and review notes sit above it), and *Bookmark*
+**Bookmarks** mark where a work session stopped. The notes pane's bar has the
+chosen law's ribbon (a bookmarked law's number is underlined), and *Bookmark*
 sits beside *Comment* when text is selected. The Bookmarks button in the top
 bar lists them, newest first, with *Bookmark here* for the law at the top of
 the screen and a remove button on each. They are kept on this device only

@@ -1,8 +1,9 @@
 /* The reader: one chapter of one section, Hebrew and English side by side,
-   one row per law, with the commentary and review notes on it beneath.
+   one row per law, and the chosen law's commentary and review notes in a
+   pane along the bottom of the screen or down one side.
 
    #/read/1-1/3     Laws of the Foundations of the Torah, chapter 3
-   #/read/1-1/3/5   …scrolled to law 5 and highlighted
+   #/read/1-1/3/5   …scrolled to law 5, highlighted and chosen
    #/read/1-1/3/5/q …and with the search q highlighted in it (a trailing /w
                     means whole words), which is where search results lead
    #/read/1-0/i/3   paragraph 3 of a section's opening
@@ -19,35 +20,45 @@
    so a unit missing on one side (the untranslated part of 2-7) shows as an
    empty cell rather than shifting everything after it.
 
-   Beneath the text come the unit's notes: commentary, then review notes,
-   each laid out in as many columns as fit. Which of the four layers show is
-   a device setting, toggled in the header's button group, and so is niqqud
-   (Hebrew/*-he.md or *-hen.md). A layer that is hidden still says, beside
-   each unit, how many notes it has there; clicking that opens them for the
-   one unit; these counts sit in the unit's right margin, above its
-   bookmark ribbon. Under 900px Hebrew and English stack.
+   THE HEADER names the section and the chapter between the arrows. The
+   section opens the contents (books.js MT.contents): every book, each
+   section in it opening on its chapters, to go straight anywhere. The
+   chapter opens a grid of the section's chapters. The Display menu beside
+   them chooses niqqud (Hebrew/*-he.md or *-hen.md), the texts that show
+   (the Hebrew, the English or both), which side the Hebrew is on, and where
+   the notes pane is: device settings all. Under 900px the texts stack.
+
+   THE NOTES PANE. A law is chosen by clicking its row; its commentary and
+   review notes show in the pane, to read and edit. Its bar names the law
+   and how many notes it has, opens and closes it, and has the law's tools:
+   add commentary or a review note, step to the previous or next law with
+   notes, its bookmark. Its inner edge drags to resize it. Open or closed,
+   where and how big are kept on the device, so it stays as it was left
+   whatever law is chosen. Each block in it folds away from its heading.
+
+   NOTED LAWS. A law's number is marked when it has commentary or review
+   notes (noteState()): green when this device has changed them, blue when
+   the branch has. A bookmarked law's number is underlined.
 
    REVIEWING. Reading a branch other than master (or its pull request's
    base), what the branch changed is marked in blue, unit by unit and note by
    note, with its diff (review.js); the branch button turns that off.
 
-   EDITING. The pencil turns on edit mode, in which clicking a unit's Hebrew
-   or English, or a note, opens it in place (editor.js), and each unit's
-   notes offer to add one. Selecting a phrase in the text offers the same in
-   any mode, with the phrase quoted. Whichever Hebrew edition is showing is
-   the one edited. Edits are drafts on this device (drafts.js); what they
-   changed is marked where it stands, in green, with its diff and an undo.
-
-   BOOKMARKS. Each unit has a ribbon in its right margin, shown on hover and
-   kept once set (bookmarks.js); the selection toolbar offers it too.
+   EDITING. There is no edit mode. A law's Hebrew and English each have a
+   pencil, shown on the row pointed at or chosen, that opens it in place
+   (editor.js); each note in the pane has its own; the pane's bar adds a
+   note. Selecting a phrase in the text offers the same, with the phrase
+   quoted. Whichever Hebrew edition is showing is the one edited. Edits are
+   drafts on this device (drafts.js); what they changed is marked where it
+   stands, in green, with its diff and an undo.
 
    IN A LIVE SESSION (session.js) the others' edits arrive while this is
-   open, and each repaints it. A row with an editor open in it is kept as it
-   stands across that (holdRow). If the very thing being edited is what
-   changed, an editor nothing has been typed in simply closes on the new
-   text, and one with typing in it says so: its text is an edit of what it
-   opened on (library.js editFrom), so finishing asks which to keep.
-   Whatever arrived is highlighted for a few seconds (flash). */
+   open, and each repaints it. A row (or the pane) with an editor open in it
+   is kept as it stands across that (holdRow). If the very thing being
+   edited is what changed, an editor nothing has been typed in simply closes
+   on the new text, and one with typing in it says so: its text is an edit
+   of what it opened on (library.js editFrom), so finishing asks which to
+   keep. Whatever arrived is highlighted for a few seconds (flash). */
 
 (function (MT) {
   'use strict';
@@ -58,11 +69,51 @@
   const lib = MT.lib;
   let seq = 0;
   let nav = null;   // { prev, next } hrefs for the keyboard
-  let live = null;  // the rendered chapter's context, for the selection toolbar
+  let live = null;  // the rendered chapter's context (ctx, below)
 
   const LAYER_NAME = { he: 'Hebrew', hen: 'pointed Hebrew', en: 'English', co: 'commentary', notes: 'review notes' };
   const ANN = ['co', 'notes'];
   const ANN_TITLE = { co: 'Commentary', notes: 'Review notes' };
+  const ANN_ICON = { co: 'comment', notes: 'note' };
+
+  /* "3 comments", "1 review note". */
+  function countText(layer, n) {
+    const one = layer === 'notes' ? 'review note' : 'comment';
+    return n + ' ' + (n === 1 ? one : one + 's');
+  }
+
+  /* Which blocks of the pane are folded. */
+  function folded(layer) { return (MT.device.get('paneFolded') || []).indexOf(layer) >= 0; }
+  function setFolded(layer, on) {
+    const list = (MT.device.get('paneFolded') || []).filter(function (l) { return l !== layer; });
+    if (on) list.push(layer);
+    MT.device.set({ paneFolded: list });
+  }
+
+  /* A block's heading, which folds it away and back: a chevron, its name and
+     how many notes it has. */
+  function annHead(layer, count) {
+    const open = !folded(layer);
+    const head = UI.el('button.annhead', {
+      type: 'button', 'aria-expanded': open ? 'true' : 'false', title: open ? 'Fold' : 'Unfold',
+      onclick: function () {
+        const box = head.closest('.cell');
+        const fold = !box.classList.contains('folded');
+        foldBox(box, fold);
+        setFolded(layer, fold);
+      }
+    }, [MT.icons.chevron(), UI.el('span.annhead-name', { text: ANN_TITLE[layer] }),
+      count ? UI.el('span.annhead-n', { text: String(count) }) : null]);
+    return head;
+  }
+
+  function foldBox(box, fold) {
+    box.classList.toggle('folded', fold);
+    const head = box.querySelector(':scope > .annhead');
+    if (!head) return;
+    head.setAttribute('aria-expanded', fold ? 'false' : 'true');
+    head.title = fold ? 'Unfold' : 'Fold';
+  }
 
   /* --------------------------------------------------------------- cells */
 
@@ -107,7 +158,8 @@
     }) || null;
   }
 
-  /* One side of a unit: `u` from F.units, or null where this side lacks it. */
+  /* One side of a unit: `u` from F.units, or null where this side lacks it.
+     At the end of its text, a pencil that opens it in the editor. */
   function unitCell(ctx, lang, u, key, href) {
     if (!u) {
       const law = F.paraNumber(key) == null;
@@ -117,30 +169,41 @@
     const change = findChange(ctx.changes, layer, 'law', key);
     const upstream = findChange(ctx.branch, layer, 'law', key);
     const view = unitView(lang, u);
-    const c = cell(lang, unitContent(lang, view, href), change ? 'changed' : null);
+    const content = unitContent(lang, view, href);
+    const c = cell(lang, content, change ? 'changed' : null);
+    const what = 'Edit the ' + LAYER_NAME[layer] + ' of ' + F.unitName(key);
+    content[content.length - 1].appendChild(UI.el('button.iconbtn.cell-edit', {
+      type: 'button', title: what, 'aria-label': what,
+      /* Editing a unit chooses it, so its notes are in the pane meanwhile. */
+      onclick: function () {
+        choose(ctx.units.byKey.get(key), false).then(function () {
+          /* The row as it is now: closing another editor repaints. */
+          const r = document.getElementById(rowId(key));
+          const now = r && r.querySelector('.text > .cell.' + lang);
+          if (now && now._edit) now._edit();
+        });
+      }
+    }, [MT.icons.pencil()]));
     if (upstream) { c.classList.add('branched'); c.appendChild(branchBar(ctx, upstream, c)); }
     if (change) c.appendChild(changeBar(ctx, layer, change, c));
     flash(c, ctx.id, layer, 'law', key);
-    if (ctx.editing) {
-      c.classList.add('editable');
-      c._edit = function () {
-        lib.section(ctx.id).then(function (sec) {
-          const hit = E.findUnit(sec[layer], key);
-          if (!hit) return;
-          const from = sec.raw[layer];
-          openEditor(c, {
-            lang: lang, body: E.unitBody(hit), label: 'Edit the ' + LAYER_NAME[layer] + ' of ' + F.unitName(key),
-            hint: hit.law ? null : 'One paragraph',
-            at: { id: ctx.id, layer: layer, kind: 'law', unit: key, began: E.unitBody(hit), was: onBranch(sec, layer, 'law', key) },
-            save: function (b) { return lib.edit(ctx.id, layer, function (doc) { return E.setLaw(doc, layer, key, b); }, from); },
-            render: function (b) {
-              const s = split(b);
-              return unitContent(lang, { label: view.label, text: s.text, extra: s.rest }, href);
-            }
-          });
+    c._edit = function () {
+      lib.section(ctx.id).then(function (sec) {
+        const hit = E.findUnit(sec[layer], key);
+        if (!hit) return;
+        const from = sec.raw[layer];
+        openEditor(c, {
+          lang: lang, body: E.unitBody(hit), label: what,
+          hint: hit.law ? null : 'One paragraph',
+          at: { id: ctx.id, layer: layer, kind: 'law', unit: key, began: E.unitBody(hit), was: onBranch(sec, layer, 'law', key) },
+          save: function (b) { return lib.edit(ctx.id, layer, function (doc) { return E.setLaw(doc, layer, key, b); }, from); },
+          render: function (b) {
+            const s = split(b);
+            return unitContent(lang, { label: view.label, text: s.text, extra: s.rest }, href);
+          }
         });
-      };
-    }
+      });
+    };
     return c;
   }
 
@@ -161,31 +224,42 @@
   function noteEl(ctx, n, layer) {
     const change = findChange(ctx.changes, layer, 'note', n.label);
     const upstream = findChange(ctx.branch, layer, 'note', n.label);
-    const el = UI.el('div.note.' + kindOf(layer) + (change ? '.changed' : '') + (upstream ? '.branched' : ''), noteContent(n));
+    const el = UI.el('div.note.editable.' + kindOf(layer) + (change ? '.changed' : '') + (upstream ? '.branched' : ''),
+      { 'data-label': n.label }, noteContent(n));
     if (upstream) el.appendChild(branchBar(ctx, upstream, el));
     if (change) el.appendChild(changeBar(ctx, layer, change, el));
     flash(el, ctx.id, layer, 'note', n.label);
-    if (ctx.editing) {
-      el.classList.add('editable');
-      el._edit = function () {
-        lib.section(ctx.id).then(function (sec) {
-          const hit = sec[layer] && E.findNote(sec[layer], n.label);
-          if (!hit) return;
-          const from = sec.raw[layer];
-          openEditor(el, {
-            body: E.noteBody(hit.note), label: 'Edit ' + LAYER_NAME[layer] + ' note ' + n.label,
-            hint: '[^' + n.label + '] · empty it to delete',
-            at: { id: ctx.id, layer: layer, kind: 'note', unit: n.label, began: E.noteBody(hit.note),
-              was: onBranch(sec, layer, 'note', n.label) },
-            save: function (b) { return lib.edit(ctx.id, layer, function (doc) { return E.setNote(doc, layer, n.label, b); }, from); },
-            render: function (b) {
-              const s = split(b);
-              return noteContent(Object.assign({}, n, { text: s.text, more: s.rest }));
-            }
-          });
+    /* Under the note, its pencil, which opens it in place. */
+    const what = 'Edit this ' + (layer === 'notes' ? 'review note' : 'comment');
+    el.appendChild(UI.el('div.note-tools', [UI.el('button.iconbtn.note-edit', {
+      type: 'button', title: what, 'aria-label': what,
+      onclick: function () {
+        const v = live && live.units.byKey.get(F.noteKey(n));
+        choose(v, false).then(function () {
+          /* The note as it is now: closing another editor repaints. */
+          const now = live && live.units.panel.querySelector('.cell.' + layer + ' .note[data-label="' + n.label + '"]');
+          if (now && now._edit) now._edit();
         });
-      };
-    }
+      }
+    }, [MT.icons.pencil()])]));
+    el._edit = function () {
+      lib.section(ctx.id).then(function (sec) {
+        const hit = sec[layer] && E.findNote(sec[layer], n.label);
+        if (!hit) return;
+        const from = sec.raw[layer];
+        openEditor(el, {
+          body: E.noteBody(hit.note), label: 'Edit ' + LAYER_NAME[layer] + ' note ' + n.label,
+          hint: '[^' + n.label + '] · empty it to delete',
+          at: { id: ctx.id, layer: layer, kind: 'note', unit: n.label, began: E.noteBody(hit.note),
+            was: onBranch(sec, layer, 'note', n.label) },
+          save: function (b) { return lib.edit(ctx.id, layer, function (doc) { return E.setNote(doc, layer, n.label, b); }, from); },
+          render: function (b) {
+            const s = split(b);
+            return noteContent(Object.assign({}, n, { text: s.text, more: s.rest }));
+          }
+        });
+      });
+    };
     return el;
   }
 
@@ -203,9 +277,9 @@
     return el;
   }
 
-  /* The commentary or review notes on unit `key`, as a block under the text:
-     a heading, then the notes in columns. `box._count` is how many there are
-     (for the row's marker), `box._changed` whether any is changed. */
+  /* The commentary or review notes on unit `key`, as a block in the pane: a
+     heading, then the notes in columns; hidden while it has none (until one
+     is added, newNote()). `box._count` is how many there are. */
   function notesCell(ctx, layer, key) {
     const out = lib.notesFor(ctx.sec[layer], key).map(function (n) { return noteEl(ctx, n, layer); });
     const count = out.length;
@@ -213,57 +287,22 @@
     (ctx.branch[layer] || []).filter(gone).forEach(function (ch) { out.push(branchDeletedNote(ctx, ch, layer)); });
     (ctx.changes[layer] || []).filter(gone).forEach(function (ch) { out.push(deletedNote(ctx, ch, layer)); });
     const list = UI.el('div.notelist', out);
-    const box = cell(layer, [UI.el('div.annhead', { text: ANN_TITLE[layer] }), list],
-      out.length || ctx.editing ? null : 'none');
+    const box = cell(layer, [annHead(layer, count), list],
+      [out.length ? null : 'none', folded(layer) ? 'folded' : null].filter(Boolean).join('.') || null);
     box._count = count;
-    box._changed = out.some(function (el) { return el.classList.contains('changed') || el.classList.contains('branched'); });
-    if (ctx.editing) {
-      box.appendChild(UI.el('div.addnote', [UI.el('button.linkbtn', {
-        type: 'button', text: layer === 'notes' ? '+ review note' : '+ commentary',
-        onclick: function () { newNote(ctx, box, layer, key, ''); }
-      })]));
-    }
     return box;
   }
 
-  /* In a unit's right margin (under a general row's text): how many notes
-     each hidden layer has on it. It opens them for this unit alone. applyCols() shows the parts for the
-     layers that are hidden, and hides the marker when that leaves nothing. */
-  function marker(row, boxes, editing) {
-    const part = function (layer, icon) {
-      const n = boxes[layer]._count;
-      return UI.el('span.mk-' + layer + (boxes[layer]._changed ? '.changed' : ''), { 'data-n': n },
-        [icon(), UI.el('span', { text: n ? String(n) : '+' })]);
-    };
-    const m = UI.el('button.annmark', {
-      type: 'button', 'aria-expanded': 'false',
-      onclick: function () {
-        const open = row.classList.toggle('open');
-        m.setAttribute('aria-expanded', open ? 'true' : 'false');
-      }
-    }, [part('co', MT.icons.comment), part('notes', MT.icons.note)]);
-    m._counts = { co: boxes.co._count, notes: boxes.notes._count };
-    m._editing = editing;
+  /* A marker that opens general remarks in place: how many notes of each
+     layer it stands for. `counts` is { layer: n }; `onclick` opens them. */
+  function marker(counts, onclick) {
+    const shown = ANN.filter(function (layer) { return counts[layer]; });
+    const m = UI.el('button.annmark', { type: 'button', onclick: onclick, 'aria-expanded': 'false' },
+      shown.map(function (layer) {
+        return UI.el('span.mk-' + layer, [MT.icons[ANN_ICON[layer]](), UI.el('span', { text: String(counts[layer]) })]);
+      }));
+    m.hidden = !shown.length;
     return m;
-  }
-
-  function setMarker(m, cols) {
-    const label = [];
-    let any = false;
-    ANN.forEach(function (layer) {
-      const part = m.querySelector('.mk-' + layer);
-      const show = !cols[layer] && (m._counts[layer] > 0 || m._editing);
-      part.hidden = !show;
-      if (show) {
-        any = true;
-        const n = m._counts[layer];
-        label.push(n ? n + ' ' + (layer === 'co' ? (n === 1 ? 'comment' : 'comments') : (n === 1 ? 'review note' : 'review notes'))
-          : 'add ' + (layer === 'co' ? 'commentary' : 'a review note'));
-      }
-    });
-    m.hidden = !any;
-    m.title = label.join(', ');
-    m.setAttribute('aria-label', m.title);
   }
 
   /* ------------------------------------------------------------- editing */
@@ -297,9 +336,10 @@
   }
 
   /* A repaint while an editor is open — in a live session, someone else's
-     edit arriving — would take the editor with it. The row it is in is
-     lifted out first and put back in place of its new self: what is being
-     typed, the caret and the focus all stay. Everything around it is new.
+     edit arriving — would take the editor with it. The row it is in (a
+     law's, or the pane, which is a row too) is lifted out first and put back
+     in place of its new self: what is being typed, the caret and the focus
+     all stay. Everything around it is new.
      → what putBack() needs, or null when no editor is open in this section. */
   function holdRow(host, id) {
     if (!MT.editor.active() || !live || live.id !== id || !host.contains(live.grid)) return null;
@@ -325,6 +365,12 @@
        text saved. So does one opened on text that has since been replaced
        with nothing typed in it yet — the new text is what there is to edit. */
     if (!now || (changed && !at.dirty)) { MT.editor.close(); return; }
+    /* The pane held is where it was: its size and whether it is open are the
+       new one's. */
+    if (now.classList.contains('vpanel')) {
+      held.row.className = now.className;
+      held.row.style.cssText = now.style.cssText;
+    }
     now.parentNode.replaceChild(held.row, now);
     if (held.focus) {
       held.focus.focus({ preventScroll: true });
@@ -356,19 +402,23 @@
     return '**' + (MT.device.get('name') || 'reviewer') + '** ' + today() + ' - ' + q;
   }
 
-  /* A new note on unit `key`, typed into its notes block. It is added to the
-     draft at the first save that has more than the prefix in it; emptied
-     again (or back to the bare prefix), it is removed. */
+  /* A new note on unit `key`, typed into its block in the pane. It is added
+     to the draft at the first save that has more than the prefix in it;
+     emptied again (or back to the bare prefix), it is removed. */
   function newNote(ctx, box, layer, key, phrase) {
     const prefix = notePrefix(layer, phrase);
     const wrap = UI.el('div.note.new.' + kindOf(layer));
     box.classList.remove('none');
+    if (box.classList.contains('folded')) { foldBox(box, false); setFolded(layer, false); }
+    const none = box.closest('.pane-body') && box.closest('.pane-body').querySelector('.vp-none');
+    if (none) none.hidden = true;
     box.querySelector('.notelist').appendChild(wrap);
     const on = F.unitName(key);
     let label = null;
     openEditor(wrap, {
       body: prefix, label: 'New ' + LAYER_NAME[layer] + ' note on ' + on,
-      hint: 'New ' + (layer === 'notes' ? 'review note' : 'commentary') + ' on ' + on,
+      hint: 'New ' + (layer === 'notes' ? 'review note' : 'commentary') + ' on ' + on +
+        (layer === 'notes' && !MT.device.get('name') ? ' · signed "reviewer" until you set your name in Settings' : ''),
       at: { id: ctx.id, layer: layer },
       save: function (b) {
         const empty = !E.paragraphs(b).length || b.trim() === prefix.trim();
@@ -442,15 +492,15 @@
   /* ----------------------------------------------------- selection toolbar */
 
   /* Select a phrase in a unit's Hebrew or English and this floats above it:
-     add a commentary or review note quoting it. */
-  let picked = null;   // { row, phrase }
+     add a commentary or review note quoting it, or bookmark the unit. */
+  let picked = null;   // { key, phrase }
   const seltools = UI.el('div.seltools', { role: 'toolbar', 'aria-label': 'Note on the selection' }, [
     selBtn('co', 'Comment'), selBtn('notes', 'Review note'), UI.el('button', {
       type: 'button', text: 'Bookmark',
       onmousedown: function (e) { e.preventDefault(); },
       onclick: function () {
         if (!picked || !live) return;
-        const key = picked.row.getAttribute('data-key');
+        const key = picked.key;
         hideSel();
         MT.bookmarks.add(live.id, key, live.title);
         UI.toast('Bookmarked ' + F.unitName(key) + '.');
@@ -466,14 +516,22 @@
       onmousedown: function (e) { e.preventDefault(); },   // keep the selection
       onclick: function () {
         if (!picked || !live) return;
-        const row = picked.row, phrase = picked.phrase;
+        const p = picked;
         hideSel();
         const s = window.getSelection();
         if (s) s.removeAllRanges();
-        /* The note goes under the unit, so open its notes if they're hidden. */
-        row.classList.add('open');
-        newNote(live, row.querySelector('.cell.' + layer), layer, row.getAttribute('data-key'), phrase);
+        addNote(p.key, layer, p.phrase);
       }
+    });
+  }
+
+  /* A new note of `layer` on unit `key` (quoting `phrase`, if any), typed
+     into the unit's pane, which is opened for it. */
+  function addNote(key, layer, phrase) {
+    if (!live) return Promise.resolve();
+    return choose(live.units.byKey.get(key), false, true).then(function () {
+      const panel = live && live.units && live.units.panel;
+      if (panel && panel.classList.contains('row')) newNote(live, panel.querySelector('.cell.' + layer), layer, key, phrase || '');
     });
   }
 
@@ -483,7 +541,7 @@
   function phraseOf(range) {
     const box = document.createElement('div');
     box.appendChild(range.cloneContents());
-    box.querySelectorAll('.label, .mk, .chg, .diff').forEach(function (n) { n.remove(); });
+    box.querySelectorAll('.label, .mk, .chg, .diff, button').forEach(function (n) { n.remove(); });
     let t = box.textContent.replace(/[*\s]+/g, ' ').trim();
     if (t.length > 120) t = t.slice(0, 117).replace(/\s+\S*$/, '') + '…';
     return t;
@@ -497,10 +555,11 @@
     if (node.nodeType !== 1) node = node.parentNode;
     const c = node && node.closest('.cell.he, .cell.en');
     const row = c && c.closest('.row.law');
-    if (!row || !row.getAttribute('data-key') || c.closest('.editor') || !live.grid.contains(row)) return hideSel();
+    if (!row || row.classList.contains('vpanel') || !row.getAttribute('data-key') || c.closest('.editor') ||
+      !live.grid.contains(row)) return hideSel();
     const phrase = phraseOf(range);
     if (!phrase) return hideSel();
-    picked = { row: row, phrase: phrase };
+    picked = { key: row.getAttribute('data-key'), phrase: phrase };
     const r = range.getBoundingClientRect();
     seltools.hidden = false;
     seltools.style.top = Math.max(0, r.top + window.scrollY - seltools.offsetHeight - 8) + 'px';
@@ -509,7 +568,11 @@
   }
 
   document.addEventListener('selectionchange', MT.debounce(checkSel, 200));
-  MT.bus.on('route', function (r) { if (r.id !== 'read') hideSel(); });
+  MT.bus.on('route', function (r) {
+    if (r.id === 'read') return;
+    hideSel();
+    document.body.classList.remove('paned');
+  });
 
   /* Commentary material that isn't anchored to a unit: its own intro, and
      any unnumbered chapters of general remarks (1-4's "General Applicability"). */
@@ -533,58 +596,114 @@
 
   /* ---------------------------------------------------------------- head */
 
-  /* Which layers show, niqqud, as one group of icon buttons. */
-  function viewGroup(grid, raw) {
-    const cols = MT.device.get('cols');
-    const col = function (key, title, content, cls) {
-      const b = UI.el('button.seg' + (cls ? '.' + cls : ''), {
-        type: 'button', 'aria-pressed': cols[key] ? 'true' : 'false', 'data-col': key,
-        title: title, 'aria-label': title,
-        onclick: function () {
-          const next = MT.device.get('cols');
-          next[key] = !next[key];
-          if (!next.he && !next.en) return;   // some text always shows
-          MT.device.set({ cols: next });
-          b.setAttribute('aria-pressed', next[key] ? 'true' : 'false');
-          applyCols(grid);
-        }
-      }, content);
-      return b;
-    };
-    const on = !!MT.device.get('niqqud');
-    const niqqud = UI.el('button.seg.glyph.he', {
-      type: 'button', lang: 'he', text: 'אָ',
-      'aria-pressed': on && raw.hen ? 'true' : 'false', disabled: !raw.hen,
-      'aria-label': 'Niqqud',
-      title: raw.hen ? (on ? 'Hide vowel points' : 'Show vowel points') : 'No pointed text for this section',
-      onclick: function () {
-        MT.editor.close().then(function () {
-          MT.device.set({ niqqud: !MT.device.get('niqqud') });
-          UI.refresh();
-        });
-      }
-    });
-    return UI.el('div.segs', { role: 'group', 'aria-label': 'Show' }, [
-      col('he', 'Hebrew', UI.el('span', { lang: 'he', text: 'א' }), 'glyph.he'),
-      niqqud,
-      col('en', 'English', 'A', 'glyph'),
-      col('co', 'Commentary', MT.icons.comment()),
-      col('notes', 'Review notes', MT.icons.note())
-    ]);
+  /* The header's controls are few: the Display menu, and marking a
+     branch's changes (when reading one). */
+
+  /* The Display menu stays open across the repaints its own choices cause. */
+  let displayOpen = false;
+
+  function setDisplay(open) {
+    displayOpen = open;
+    const wrap = document.querySelector('.screen.on .dispwrap');
+    if (!wrap) return;
+    wrap.querySelector('.dispmenu').hidden = !open;
+    wrap.querySelector('.dispbtn').setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
-  function editToggle() {
-    const on = !!MT.device.get('editing');
-    return UI.el('button.seg.editseg', {
-      type: 'button', 'aria-pressed': on ? 'true' : 'false', 'aria-label': 'Edit',
-      title: on ? 'Stop editing' : 'Edit: click a law, a paragraph or a note to change it',
-      onclick: function () {
-        MT.editor.close().then(function () {
-          MT.device.set({ editing: !MT.device.get('editing') });
-          UI.refresh();
+  document.addEventListener('click', function (e) {
+    if (!displayOpen || !document.contains(e.target)) return;   // a choice that has repainted the menu
+    const wrap = document.querySelector('.screen.on .dispwrap');
+    if (!wrap || !wrap.contains(e.target)) setDisplay(false);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || !displayOpen) return;
+    e.preventDefault();   // this Escape is the menu's, not the pane's
+    setDisplay(false);
+    const b = document.querySelector('.screen.on .dispbtn');
+    if (b) b.focus();
+  });
+
+  /* Which texts show: both, or the Hebrew or the English alone. */
+  function texts() {
+    const c = MT.device.get('cols');
+    return c.he && c.en ? 'both' : c.he ? 'he' : 'en';
+  }
+
+  /* Which side of the page the Hebrew is on. */
+  function heSide() {
+    return MT.device.get('heSide') === 'right' ? 'right' : 'left';
+  }
+
+  /* The Display menu: niqqud, the texts that show, which side the Hebrew is
+     on, and where the notes pane is. Each choice repaints the page. Its
+     button shows the Hebrew as it is showing. */
+  function displayMenu(raw) {
+    const pointed = !!MT.device.get('niqqud') && !!raw.hen;
+    const btn = UI.el('button.seg.dispbtn', {
+      type: 'button', 'aria-haspopup': 'true', 'aria-expanded': displayOpen ? 'true' : 'false',
+      title: 'Display: niqqud, the texts, the notes pane', 'aria-label': 'Display',
+      onclick: function () { setDisplay(!displayOpen); }
+    }, [UI.el('span.he', { lang: 'he', text: pointed ? 'אָ' : 'א' }), MT.icons.chevron()]);
+
+    const repaint = function (patch) {
+      MT.editor.close().then(function () {
+        MT.device.set(patch);
+        UI.refresh();
+      });
+    };
+
+    const mode = function (on, glyph, title) {
+      return UI.el('button.seg.glyph.he', {
+        type: 'button', lang: 'he', text: glyph, title: title, 'aria-label': title,
+        'aria-pressed': !!MT.device.get('niqqud') === on ? 'true' : 'false',
+        onclick: function () { if (!!MT.device.get('niqqud') !== on) repaint({ niqqud: on }); }
+      });
+    };
+
+    /* One choice of several: a radio. */
+    const one = function (key, label) {
+      return UI.el('button.dm-item.dm-one', {
+        type: 'button', role: 'radio', 'aria-checked': texts() === key ? 'true' : 'false',
+        onclick: function () {
+          if (texts() !== key) repaint({ cols: { he: key !== 'en', en: key !== 'he' } });
+        }
+      }, [UI.el('span.dm-check', [MT.icons.check()]), UI.el('span', { text: label })]);
+    };
+
+    /* A row of buttons choosing one of `opts` ({ value: label }) for device
+       setting `key`, whose value now is `now`. */
+    const segs = function (key, label, opts, now) {
+      return UI.el('div.segs.dm-segs', { role: 'group', 'aria-label': label }, Object.keys(opts).map(function (v) {
+        return UI.el('button.seg', {
+          type: 'button', text: opts[v], 'aria-pressed': now === v ? 'true' : 'false',
+          onclick: function () { if (now !== v) { const p = {}; p[key] = v; repaint(p); } }
         });
-      }
-    }, [MT.icons.pencil()]);
+      }));
+    };
+    const paneLabels = {};
+    Object.keys(PANE_POS).forEach(function (p) { paneLabels[p] = PANE_POS[p].label; });
+
+    const menu = UI.el('div.dispmenu', { role: 'group', 'aria-label': 'Display' }, [
+      UI.el('div.dm-head', { text: 'Hebrew' }),
+      UI.el('div.segs.hemodes', { role: 'group', 'aria-label': 'Hebrew' },
+        [mode(false, 'א', 'Hebrew letters only'), mode(true, 'אָ', 'Hebrew with niqqud')]),
+      UI.el('p.dm-sub', { text: raw.hen ? (pointed ? 'With niqqud.' : 'Letters only.')
+        : 'This section has no pointed text: letters only.' }),
+
+      UI.el('div.dm-head', { text: 'Texts' }),
+      UI.el('div', { role: 'radiogroup', 'aria-label': 'Texts' },
+        [one('both', 'Hebrew and English'), one('he', 'Hebrew alone'), one('en', 'English alone')]),
+
+      UI.el('div.dm-head', { text: 'Hebrew on the' }),
+      segs('heSide', 'Hebrew on the', { left: 'Left', right: 'Right' }, heSide()),
+
+      UI.el('div.dm-head', { text: 'Notes pane' }),
+      segs('panePos', 'Notes pane', paneLabels, MT.device.get('panePos') || 'bottom'),
+      UI.el('p.dm-sub', { text: 'Select a law to see its commentary and review notes there.' +
+        (window.innerWidth < PANE_SIDE_FROM ? ' At the bottom while the window is this narrow.' : '') })
+    ]);
+    menu.hidden = !displayOpen;
+    return UI.el('div.dispwrap', [UI.el('div.segs', [btn]), menu]);
   }
 
   /* Marking what the branch changed compared with its base, on or off. Only
@@ -605,19 +724,15 @@
     }, [MT.icons.branch()]);
   }
 
-  /* The layers showing, as classes on the grid: Hebrew and English share the
-     rows' column template; commentary and notes show beneath, or only as the
-     markers' counts. */
+  /* The texts showing and the side the Hebrew is on, as classes on the
+     grid; the texts share the rows' column template, in that order. */
   function applyCols(grid) {
-    const cols = MT.device.get('cols');
-    const text = ['he', 'en'].filter(function (k) { return cols[k]; });
-    if (!text.length) text.push('en');
-    const show = text.concat(ANN.filter(function (k) { return cols[k]; }));
-    grid.className = 'grid' + (grid.classList.contains('pointed') ? ' pointed' : '') +
-      (grid.classList.contains('editing') ? ' editing' : '') +
-      ' cols-' + text.length + ' ' + show.map(function (k) { return 'show-' + k; }).join(' ');
-    grid.style.setProperty('--cols', text.length === 1 ? 'minmax(0, 1fr)' : '1fr 1.15fr');
-    grid.querySelectorAll('.annmark').forEach(function (m) { setMarker(m, cols); });
+    const t = texts();
+    const text = t === 'both' ? (heSide() === 'left' ? ['he', 'en'] : ['en', 'he']) : [t];
+    grid.classList.add('cols-' + text.length, 'he-' + heSide());
+    text.forEach(function (k) { grid.classList.add('show-' + k); });
+    grid.style.setProperty('--cols', text.length === 1 ? 'minmax(0, 1fr)'
+      : text.map(function (k) { return k === 'en' ? 'minmax(0, 1.15fr)' : 'minmax(0, 1fr)'; }).join(' '));
   }
 
   /* Previous/next chapter, running on into the neighbouring section. */
@@ -635,51 +750,126 @@
     };
   }
 
-  /* marked: keys of chapters with changes on the branch, flagged in the list. */
-  function pager(ix, meta, sec, chapters, i, withSelect, marked) {
+  /* The arrows, and in the header between them the section's name, which
+     opens the contents, and the chapter's, which opens the section's
+     chapters (`marked`: the keys of those with changes on the branch,
+     flagged there). */
+  function pager(ix, meta, title, chapters, i, withNav, marked) {
     const n = neighbours(ix, meta, chapters, i);
     const link = function (href, icon, label) {
       return href
         ? UI.el('a.iconbtn.pg', { href: href, 'aria-label': label, title: label }, [icon()])
         : UI.el('span.iconbtn.pg.off', { 'aria-hidden': 'true' }, [icon()]);
     };
-    let select = null;
-    if (withSelect && chapters.length > 1) {
-      select = UI.select(chapters.map(function (c) {
-        return { value: c.key, label: lib.chapterName(c) + (marked && marked.has(c.key) ? ' • changed' : '') };
-      }),
-        chapters[i].key, function () { UI.go('read', [sec.id, select.value]); });
-      select.setAttribute('aria-label', 'Chapter');
-      select.classList.add('chsel');
+    let middle = null;
+    if (withNav) {
+      const cur = chapters[i];
+      const name = cur ? lib.chapterName(cur) : '';
+      middle = [
+        navPop('Books and sections', title, 'contents', function () { return contentsNav(ix, meta, cur && cur.key); }),
+        chapters.length > 1
+          ? navPop('Chapters of ' + title, name, 'chapters', function () { return chapterNav(meta, title, chapters, i, marked); })
+          : name ? UI.el('span.navtext.solo', { text: name }) : null
+      ];
     }
-    return UI.el('div.pager', [link(n.prev, MT.icons.prev, 'Previous chapter'), select,
+    return UI.el('div.pager', [link(n.prev, MT.icons.prev, 'Previous chapter'), middle,
       link(n.next, MT.icons.next, 'Next chapter')]);
   }
 
+  /* ------------------------------------------------------------ navigator */
+
+  /* A name in the header that opens a pop-up below it, built when opened.
+     One is open at a time; a click outside it, Esc, or going anywhere
+     closes it. */
+  function navPop(label, text, cls, build) {
+    const pop = UI.el('div.navpop.' + cls, { role: 'dialog', 'aria-label': label });
+    pop.hidden = true;
+    const btn = UI.el('button.navbtn', {
+      type: 'button', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', title: label,
+      onclick: function () {
+        const opening = pop.hidden;
+        closeNav();
+        if (!opening) return;
+        UI.fill(pop, build());
+        pop.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        reveal(pop);
+      }
+    }, [UI.el('span.navtext', { text: text }), MT.icons.chevron()]);
+    /* A link to where you already are goes nowhere, so close on any. */
+    pop.addEventListener('click', function (e) { if (e.target.closest('a[href]')) closeNav(); });
+    return UI.el('div.navwrap', [btn, pop]);
+  }
+
+  /* Scroll a pop-up (and not the page) to where you are in it, a third of
+     the way down; to its top if that is nowhere in it. */
+  function reveal(pop) {
+    const at = pop.querySelector('[aria-current="page"]') || pop.querySelector('.cur');
+    pop.scrollTop = at ? pop.scrollTop + at.getBoundingClientRect().top - pop.getBoundingClientRect().top - pop.clientHeight / 3 : 0;
+  }
+
+  function closeNav() {
+    document.querySelectorAll('.navpop:not([hidden])').forEach(function (p) {
+      p.hidden = true;
+      p.parentNode.querySelector('.navbtn').setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    if (!document.contains(e.target) || e.target.closest('.navwrap')) return;
+    closeNav();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    const pop = document.querySelector('.navpop:not([hidden])');
+    if (!pop) return;
+    e.preventDefault();   // the pop-up's Escape, not the pane's
+    closeNav();
+    pop.parentNode.querySelector('.navbtn').focus();
+  });
+  MT.bus.on('route', closeNav);
+
+  /* The section's chapters, as the contents lists them. */
+  function chapterNav(meta, title, chapters, i, marked) {
+    const list = chapters.map(function (c) {
+      const ch = c.en || c.he;
+      return { key: c.key, heading: ch.n == null ? lib.chapterName(c) : null };
+    });
+    return MT.contents.chapterGrid(meta.id, title, list, marked, chapters[i] && chapters[i].key);
+  }
+
+  /* Every book, each with its sections, each opening on its chapters. The
+     book and the section being read are open, and marked. */
+  function contentsNav(ix, meta, ch) {
+    const out = MT.contents.books(ix);
+    out.forEach(function (d) {
+      if (d.getAttribute('data-book') !== String(meta.book.id)) return;
+      d.open = true;
+      d.classList.add('cur');
+      const here = d.querySelector('[data-sec="' + meta.id + '"]');
+      if (!here) return;
+      here.classList.add('cur');
+      if (here.tagName === 'DETAILS') here.open = true;
+      else here.setAttribute('aria-current', 'page');
+      const at = ch && here.querySelector('a.chnum[href="' + UI.href('read', [meta.id, ch]) + '"]');
+      if (at) at.setAttribute('aria-current', 'page');
+    });
+    return out;
+  }
+
   /* What this section's drafts are, above the text: which files have
-     changes, whether the branch has moved on under any, and in edit mode
-     how editing works. */
+     changes, and whether the branch has moved on under any. */
   function draftNote(ctx) {
     const layers = Object.keys(ctx.raw.drafts);
-    const out = [];
-    if (layers.length) {
-      const stale = layers.filter(function (l) { return ctx.raw.stale[l]; });
-      out.push(UI.el('p.draftnote', [
-        (MT.session.active() ? 'Changes not shared yet here to the ' : 'Unsubmitted changes here to the ') +
-          layers.map(function (l) { return LAYER_NAME[l]; }).join(', ') + '. ',
-        stale.length ? 'The ' + stale.map(function (l) { return LAYER_NAME[l]; }).join(', ') +
-          ' changed on the branch after you began; your edits are kept as they are. ' : null,
-        UI.el('a', { href: '#/changes', text: 'Review all changes' })
-      ]));
-    }
-    if (ctx.editing) {
-      out.push(UI.el('p.draftnote.hint', [
-        'Click a law, a paragraph or a note to edit it. Edits are saved on this device as you type' +
-          (MT.session.active() ? ', and shared with the session as you finish each. ' : '. '),
-        MT.device.get('name') ? null : UI.el('a', { href: '#/settings', text: 'Set your name to sign review notes.' })
-      ]));
-    }
-    return out;
+    if (!layers.length) return null;
+    const stale = layers.filter(function (l) { return ctx.raw.stale[l]; });
+    return UI.el('p.draftnote', [
+      (MT.session.active() ? 'Changes not shared yet here to the ' : 'Unsubmitted changes here to the ') +
+        layers.map(function (l) { return LAYER_NAME[l]; }).join(', ') + '. ',
+      stale.length ? 'The ' + stale.map(function (l) { return LAYER_NAME[l]; }).join(', ') +
+        ' changed on the branch after you began; your edits are kept as they are. ' : null,
+      UI.el('a', { href: '#/changes', text: 'Review all changes' })
+    ]);
   }
 
   /* Which branch this is and what it changed here, when marking. */
@@ -720,8 +910,53 @@
     return UI.href('read', [ctx.id].concat(key.split(':')));
   }
 
-  /* The ribbon in a unit's margin, under its note counts: shows on hover,
-     and stays once set. */
+  function rowId(key) {
+    return 'law-' + key.replace(':', '-');
+  }
+
+  /* How many notes of `layer` each unit has: key → count, once per paint. */
+  function noteCounts(ctx, layer) {
+    if (!ctx.counts) ctx.counts = {};
+    if (!ctx.counts[layer]) {
+      const m = new Map();
+      const doc = ctx.sec[layer];
+      if (doc) doc.chapters.forEach(function (ch) {
+        ch.notes.forEach(function (n) { const k = F.noteKey(n); m.set(k, (m.get(k) || 0) + 1); });
+      });
+      ctx.counts[layer] = m;
+    }
+    return ctx.counts[layer];
+  }
+
+  /* Has `layer` a change on unit `key` in this list (the drafts' or the
+     branch's)? */
+  function touched(changes, layer, key) {
+    return (changes[layer] || []).some(function (c) { return c.kind === 'note' && c.key === key; });
+  }
+
+  /* Whether unit `key` has notes, for its numbers: `cls` is 'noted' if it
+     has commentary or review notes or a change to them, with 'changed' when
+     this device has changed them or 'branched' when the branch has (else
+     ''); `said`, how many of each. */
+  function noteState(ctx, key) {
+    const said = [];
+    let noted = false, mine = false, up = false;
+    ANN.forEach(function (layer) {
+      const n = noteCounts(ctx, layer).get(key) || 0;
+      if (n) { said.push(countText(layer, n)); noted = true; }
+      if (touched(ctx.changes, layer, key)) mine = true;
+      else if (touched(ctx.branch, layer, key)) up = true;
+    });
+    if (!noted && !mine && !up) return { cls: '', said: said };
+    return { cls: 'noted' + (mine ? ' changed' : up ? ' branched' : ''), said: said };
+  }
+
+  /* Has unit `v` notes, or a change to them? */
+  function annotated(v) {
+    return !!noteState(v.ctx, v.key).cls;
+  }
+
+  /* The bookmark ribbon, in the pane's bar: filled once set. */
   function bookmarkBtn(ctx, key) {
     const b = UI.el('button.bmk', {
       type: 'button',
@@ -736,42 +971,299 @@
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
     b.title = (on ? 'Remove the bookmark on ' : 'Bookmark ') + F.unitName(key);
     b.setAttribute('aria-label', b.title);
-    const r = b.closest('.row');
-    if (r) r.classList.toggle('marked', on);
   }
 
   MT.bus.on('bookmarks', function () {
     if (!live) return;
-    live.grid.querySelectorAll('.row.law').forEach(function (r) {
-      const b = r.querySelector('.rmargin > .bmk');
-      if (b) paintBookmark(b, live.id, r.getAttribute('data-key'));
+    live.grid.querySelectorAll('.row.law:not(.vpanel)').forEach(function (r) {
+      r.classList.toggle('marked', MT.bookmarks.has(live.id, r.getAttribute('data-key')));
     });
+    const b = live.units.panel && live.units.panel.querySelector('.bmk');
+    if (b) paintBookmark(b, live.id, live.units.panel.getAttribute('data-key'));
   });
 
-  function unitRow(ctx, r) {
+  /* A unit's row: its texts. Its notes are in the pane, opened by choosing
+     the row; its numbers say whether it has any. The unit is added to `s`,
+     the page's units. */
+  function unitRow(ctx, r, s) {
     const href = unitHref(ctx, r.key);
-    const boxes = { co: notesCell(ctx, 'co', r.key), notes: notesCell(ctx, 'notes', r.key) };
-    const el = row('law' + (F.paraNumber(r.key) != null ? '.para' : ''), [], 'law-' + r.key.replace(':', '-'));
+    const v = { key: r.key, id: rowId(r.key), ctx: ctx };
+    s.order.push(v);
+    s.byKey.set(v.key, v);
+    const el = row('law' + (F.paraNumber(r.key) != null ? '.para' : ''), [], v.id);
     el.setAttribute('data-key', r.key);
     el.classList.toggle('marked', MT.bookmarks.has(ctx.id, r.key));
-    UI.append(el, [
-      UI.el('div.text', [unitCell(ctx, 'he', r.he, r.key, href), unitCell(ctx, 'en', r.en, r.key, href)]),
-      UI.el('div.rmargin', [marker(el, boxes, ctx.editing), bookmarkBtn(ctx, r.key)]),
-      UI.el('div.ann', [boxes.co, boxes.notes])
-    ]);
+    el.appendChild(UI.el('div.text', [unitCell(ctx, 'he', r.he, r.key, href), unitCell(ctx, 'en', r.en, r.key, href)]));
+    const st = noteState(ctx, r.key);
+    if (st.cls) {
+      el.querySelectorAll('.text > .cell > p > a.label').forEach(function (a) {
+        st.cls.split(' ').forEach(function (c) { a.classList.add(c); });
+        a.title = st.said.length ? st.said.join(', ') : 'Notes changed';
+      });
+    }
     return el;
   }
 
-  /* Commentary that belongs to no unit, as a row of its own under a marker. */
+  /* Commentary that belongs to no unit, as a row of its own under a marker
+     that opens it in place. */
   function generalRow(blocks) {
     if (!blocks.length) return null;
     const el = row('general');
     const box = cell('co', [UI.el('div.annhead', { text: 'Commentary: general remarks' })].concat(blocks));
-    box._count = 1;
-    const m = marker(el, { co: box, notes: { _count: 0 } }, false);
+    const m = marker({ co: 1 }, function () {
+      const open = el.classList.toggle('open');
+      m.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
     m.querySelector('.mk-co span').textContent = 'General remarks';
+    m.title = 'General remarks';
+    m.setAttribute('aria-label', m.title);
     UI.append(el, [m, UI.el('div.ann', [box])]);
     return el;
+  }
+
+  /* ---------------------------------------------------------------- pane */
+
+  /* The chosen unit's commentary and review notes are in a pane fixed along
+     the bottom of the screen, the full width of it, or down its left or
+     right side (the Display menu's choice). It is always there: a bar
+     naming the unit and how many notes it has, which opens and closes the
+     pane, and when open the notes, as high (or wide) as its inner edge has
+     been dragged. A screen too narrow for a side pane has it at the bottom.
+     It is a unit row like the text's, so editing in it, and keeping an
+     editor open across a repaint (holdRow), work the same. */
+  const PANE_MIN = 120, PANE_MIN_W = 260, PANE_SIDE_FROM = 900;
+  const PANE_POS = {
+    bottom: { label: 'Bottom', open: 'down', shut: 'up' },
+    left: { label: 'Left', open: 'prev', shut: 'next' },
+    right: { label: 'Right', open: 'next', shut: 'prev' }
+  };
+  let paneRO = null;
+
+  /* The unit open in the pane, kept across repaints of the same chapter:
+     { page, key }, or null. */
+  let chosen = null;
+
+  /* Where the pane is: as chosen, if the screen is wide enough for it. */
+  function panePos() {
+    const p = MT.device.get('panePos');
+    return PANE_POS[p] && (p === 'bottom' || window.innerWidth >= PANE_SIDE_FROM) ? p : 'bottom';
+  }
+  /* Its size across the screen: its height at the bottom, its width at a side. */
+  function paneSize(side, n) {
+    if (!side) {
+      n = n || MT.device.get('paneHeight') || Math.round(window.innerHeight * 0.34);
+      return Math.max(PANE_MIN, Math.min(n, Math.max(PANE_MIN, window.innerHeight - fixedTop() - 40)));
+    }
+    n = n || MT.device.get('paneWidth') || Math.min(440, Math.round(window.innerWidth * 0.3));
+    return Math.max(PANE_MIN_W, Math.min(n, Math.round(window.innerWidth * 0.6)));
+  }
+
+  /* The unit's name, linking to it in its chapter. */
+  function unitRef(v) {
+    const name = F.unitName(v.key);
+    return UI.el('a.vp-ref', { href: unitHref(v.ctx, v.key), title: 'This ' + (F.paraNumber(v.key) == null ? 'law' : 'paragraph') + ' in its chapter' }, [
+      UI.el('strong', { text: name.charAt(0).toUpperCase() + name.slice(1) }),
+      UI.el('span.vp-sec', { text: v.ctx.title })
+    ]);
+  }
+
+  /* To the previous or next unit with notes. */
+  function stepBtn(s, v, d) {
+    let to = null;
+    for (let i = s.order.indexOf(v) + d; i >= 0 && i < s.order.length; i += d) {
+      if (annotated(s.order[i])) { to = s.order[i]; break; }
+    }
+    const label = d < 0 ? 'Previous law with notes' : 'Next law with notes';
+    return UI.el('button.iconbtn.vp-step', {
+      type: 'button', disabled: !to, title: label, 'aria-label': label,
+      onclick: function () { if (to) choose(to, true); }
+    }, [(d < 0 ? MT.icons.up : MT.icons.down)()]);
+  }
+
+  function closeBtn() {
+    return UI.el('button.iconbtn.vp-close', {
+      type: 'button', title: 'Close (Esc)', 'aria-label': 'Close', onclick: function () { choose(null); }
+    }, [MT.icons.close()]);
+  }
+
+  /* In the pane's bar: add commentary, or a review note, to its unit. */
+  function addBtn(key, layer) {
+    const label = layer === 'notes' ? 'Add a review note' : 'Add commentary';
+    return UI.el('button.iconbtn.vp-add.add-' + layer, {
+      type: 'button', title: label, 'aria-label': label,
+      onclick: function () { addNote(key, layer, ''); }
+    }, [(layer === 'notes' ? MT.icons.noteAdd : MT.icons.commentAdd)()]);
+  }
+
+  function paneEl(v, s) {
+    const open = !!MT.device.get('paneOpen');
+    const pos = panePos(), side = pos !== 'bottom';
+    const dim = side ? 'width' : 'height';
+    const ctx = v && v.ctx, key = v && v.key;
+    const boxes = {};
+    if (v) ANN.forEach(function (layer) { boxes[layer] = notesCell(ctx, layer, key); });
+    const has = v ? ANN.filter(function (l) { return boxes[l]._count; }) : [];
+    const said = has.map(function (l) { return countText(l, boxes[l]._count); });
+
+    const toggle = UI.el('button.iconbtn.pane-toggle', { type: 'button', onclick: function () { setOpen(!el.classList.contains('open-pane')); } });
+    const grip = UI.el('div.pane-grip', {
+      role: 'separator', tabindex: '0', 'aria-orientation': side ? 'vertical' : 'horizontal',
+      'aria-label': (side ? 'Width' : 'Height') + ' of the notes pane', title: 'Drag to resize'
+    });
+    const bar = UI.el('div.pane-bar', [
+      toggle,
+      v ? unitRef(v) : UI.el('span.pane-hint', { text: 'Notes · no law selected' }),
+      /* Each layer's count with its icon. */
+      v ? (has.length
+        ? UI.el('span.pane-count', { title: said.join(' · '), 'aria-label': said.join(', ') }, has.map(function (l) {
+          return UI.el('span.mk-' + l, { 'aria-hidden': 'true' }, [MT.icons[ANN_ICON[l]](), UI.el('span', { text: String(boxes[l]._count) })]);
+        }))
+        : UI.el('span.pane-count.none', { text: 'No notes' })) : null,
+      v ? UI.el('div.vp-tools', [
+        addBtn(key, 'co'), addBtn(key, 'notes'),
+        stepBtn(s, v, -1), stepBtn(s, v, 1),
+        bookmarkBtn(ctx, key),
+        closeBtn()
+      ]) : null
+    ]);
+    /* The bar's own background opens and closes it too. The path, not
+       e.target.closest: the toggle swaps its icon as it is clicked, leaving
+       the target out of the document by the time the click gets here. */
+    bar.addEventListener('click', function (e) {
+      const onControl = e.composedPath().some(function (n) { return n.matches && n.matches('a, button'); });
+      if (!onControl) setOpen(!el.classList.contains('open-pane'));
+    });
+    const body = UI.el('div.pane-body', v ? [
+      UI.el('div.ann', ANN.map(function (l) { return boxes[l]; })),
+      has.length ? null : UI.el('p.vp-none', { text: 'No commentary or review notes on this ' +
+        (F.paraNumber(key) == null ? 'law' : 'paragraph') + ' yet.' })
+    ] : [
+      UI.el('p.vp-hint', { text: 'Select a law to see its commentary and review notes here, to add to them, or to bookmark it.' })
+    ]);
+
+    const el = UI.el('aside.vpanel.pane.at-' + pos + (v ? '.row.law' : ''), v ? { 'data-key': key } : {},
+      [grip, bar, body]);
+    if (v) el.id = 'vp-' + v.id;
+
+    function setOpen(o) {
+      MT.device.set({ paneOpen: o });
+      el.classList.toggle('open-pane', o);
+      el.style[dim] = o ? paneSize(side) + 'px' : '';
+      toggle.setAttribute('aria-expanded', o ? 'true' : 'false');
+      const label = o ? 'Hide the notes' : 'Show the notes';
+      toggle.title = label;
+      toggle.setAttribute('aria-label', label);
+      UI.fill(toggle, [MT.icons[PANE_POS[pos][o ? 'open' : 'shut']]()]);
+    }
+    setOpen(open);
+
+    /* Dragging the inner edge sets the size; so do the arrow keys on it. */
+    const resize = function (n) {
+      n = paneSize(side, n);
+      el.style[dim] = n + 'px';
+      return n;
+    };
+    const save = function (n) { MT.device.set(side ? { paneWidth: n } : { paneHeight: n }); };
+    const size = function () { return side ? el.offsetWidth : el.offsetHeight; };
+    /* How far a move grows the pane: up from the bottom, inward from a side. */
+    const grow = function (dx, dy) { return pos === 'left' ? dx : pos === 'right' ? -dx : -dy; };
+    grip.addEventListener('pointerdown', function (e) {
+      if (e.button) return;
+      e.preventDefault();
+      grip.setPointerCapture(e.pointerId);
+      el.classList.add('dragging');
+      const x0 = e.clientX, y0 = e.clientY, n0 = size();
+      const move = function (ev) { resize(n0 + grow(ev.clientX - x0, ev.clientY - y0)); };
+      const end = function () {
+        grip.removeEventListener('pointermove', move);
+        grip.removeEventListener('pointerup', end);
+        grip.removeEventListener('pointercancel', end);
+        el.classList.remove('dragging');
+        save(size());
+      };
+      grip.addEventListener('pointermove', move);
+      grip.addEventListener('pointerup', end);
+      grip.addEventListener('pointercancel', end);
+    });
+    grip.addEventListener('keydown', function (e) {
+      const k = { ArrowUp: [0, -32], ArrowDown: [0, 32], ArrowLeft: [-32, 0], ArrowRight: [32, 0] }[e.key];
+      const d = k ? grow(k[0], k[1]) : 0;
+      if (!d) return;
+      e.preventDefault();
+      save(resize(size() + d));
+    });
+    return el;
+  }
+
+  /* At the bottom, the page leaves room at its foot for the pane, however
+     high it is, so the text scrolls clear of it. At a side the pane lies
+     over the text, which keeps its width. */
+  function watchPane(el) {
+    if (paneRO) paneRO.disconnect();
+    const pos = panePos();
+    Object.keys(PANE_POS).forEach(function (p) { document.body.classList.toggle('pane-' + p, p === pos); });
+    if (pos !== 'bottom') return;
+    const set = function () { document.documentElement.style.setProperty('--pane-space', el.offsetHeight + 'px'); };
+    set();
+    if (window.ResizeObserver) {
+      paneRO = new ResizeObserver(set);
+      paneRO.observe(el);
+    }
+  }
+  window.addEventListener('resize', MT.debounce(function () {
+    const el = document.querySelector('.screen.on .vpanel.pane');
+    if (!el) return;
+    /* Narrowed past where a side pane fits, or widened back: it moves. */
+    if (!el.classList.contains('at-' + panePos())) {
+      choose(chosen && live && live.units.byKey.get(chosen.key) || null, false);
+      return;
+    }
+    if (!el.classList.contains('open-pane')) return;
+    const side = !el.classList.contains('at-bottom');
+    el.style[side ? 'width' : 'height'] = paneSize(side) + 'px';
+  }, 150));
+
+  /* Open unit `v` (or nothing) in the pane. `reveal` scrolls the text to it
+     if it is out of sight; `force` opens the pane, for a note about to be
+     added. */
+  function choose(v, reveal, force) {
+    if (!live) return Promise.resolve();
+    /* Closing an editor repaints the page; that comes first. */
+    const editing = MT.editor.active();
+    return MT.editor.close().then(function () {
+      return editing ? new Promise(function (r) { setTimeout(r, 0); }) : null;
+    }).then(function () {
+      if (live) show(v && live.units.byKey.get(v.key), reveal, force);
+    });
+  }
+
+  /* The same, at once: for painting the page, which must leave an open
+     editor be (holdRow). */
+  function show(v, reveal, force) {
+    chosen = v ? { page: live.page, key: v.key } : null;
+    if (v && force) MT.device.set({ paneOpen: true });
+    live.grid.querySelectorAll('.row.sel').forEach(function (el) { el.classList.remove('sel'); });
+    if (v) {
+      const r = document.getElementById(v.id) || live.grid.querySelector('#' + v.id);
+      if (r) r.classList.add('sel');
+    }
+    const next = paneEl(v, live.units);
+    live.units.panel.replaceWith(next);
+    live.units.panel = next;
+    watchPane(next);
+    if (reveal && v) {
+      /* Into view if it is under the headers, or under the pane at the
+         bottom. */
+      const first = document.getElementById(v.id);
+      const r = first && first.getBoundingClientRect();
+      const bottom = next.classList.contains('at-bottom') ? next.getBoundingClientRect().top : window.innerHeight;
+      if (r && (r.top < fixedTop() || r.bottom > bottom)) first.scrollIntoView({ block: 'center' });
+    }
+  }
+
+  function fixedTop() {
+    const head = document.querySelector('.screen.on .rhead');
+    return document.querySelector('.topbar').offsetHeight + (head ? head.offsetHeight : 0);
   }
 
   /* -------------------------------------------------------------- render */
@@ -785,12 +1277,11 @@
     const cur = chapters[i] || null;
     const key = cur ? cur.key : null;
 
-    const editing = !!MT.device.get('editing');
-    const grid = UI.el('div.grid' + (sec.pointed ? '.pointed' : '') + (editing ? '.editing' : ''));
+    const grid = UI.el('div.grid' + (sec.pointed ? '.pointed' : ''));
     const held = holdRow(host, raw.id);
 
     const ctx = {
-      id: raw.id, sec: sec, raw: raw, grid: grid, editing: editing,
+      id: raw.id, sec: sec, raw: raw, grid: grid, page: raw.id + '/' + key,
       heLayer: sec.pointed ? 'hen' : 'he', changes: lib.changes(raw),
       branch: (up && up.changes) || {}, base: MT.device.get('baseBranch')
     };
@@ -802,17 +1293,21 @@
     const crumbs = [{ text: bookName, href: UI.href('books', [meta.book.id]) }];
     if (title !== bookName) crumbs.push({ text: title });
 
+    const marked = MT.review.chapters(ctx.branch);
     const head = UI.el('header.rhead', [
-      UI.el('div.rbar', [pager(ix, meta, sec, chapters, i, true, MT.review.chapters(ctx.branch)),
-        UI.el('div.toggles', [viewGroup(grid, raw), UI.el('div.segs', [editToggle(), marksToggle()])])])
+      UI.el('div.rbar', [pager(ix, meta, title, chapters, i, true, marked),
+        UI.el('div.toggles', [displayMenu(raw), marksToggle() ? UI.el('div.segs', [marksToggle()]) : null])])
     ]);
     const notes = UI.el('div.rnotes', [MT.session.active() ? MT.session.line() : null, branchNote(ctx, up), draftNote(ctx)]);
     if (!sec.en) notes.appendChild(UI.note('This section has no English file yet.'));
 
+    /* The page's units, in order and by key, and the pane. */
+    const s = ctx.units = { order: [], byKey: new Map(), panel: UI.el('aside.vpanel') };
+
     /* The section's opening goes above its first chapter. */
     if (i === 0) {
       UI.append(grid, generalRow(coGeneral(sec.co)));
-      pairUnits(ctx, function (u) { return !u.ch; }).forEach(function (r) { grid.appendChild(unitRow(ctx, r)); });
+      pairUnits(ctx, function (u) { return !u.ch; }).forEach(function (r) { grid.appendChild(unitRow(ctx, r, s)); });
     }
 
     if (cur) {
@@ -828,34 +1323,57 @@
       const mine = function (u) { return u.ch && (u.ch === cur.he || u.ch === cur.en); };
       pairUnits(ctx, function (u) { return mine(u) && !u.law; })
         .concat(pairUnits(ctx, function (u) { return mine(u) && u.law; }))
-        .forEach(function (r) { grid.appendChild(unitRow(ctx, r)); });
+        .forEach(function (r) { grid.appendChild(unitRow(ctx, r, s)); });
     }
+    grid.appendChild(s.panel);
     applyCols(grid);
 
+    /* The pane keeps its unit across repaints of the chapter; a unit linked
+       to opens in it when it is arrived at, not at every repaint after. */
+    const target = args[2] ? s.order.find(function (v) { return v.id === 'law-' + (args[1] === 'i' ? 'i' : key) + '-' + args[2]; }) : null;
+    const arrived = host.getAttribute('data-args') !== args.join('/');
+    host.setAttribute('data-args', args.join('/'));
+    if (target && arrived) chosen = { page: ctx.page, key: target.key };
+    else if (!chosen || chosen.page !== ctx.page || !s.byKey.has(chosen.key)) chosen = null;
+
+    /* Choosing a unit: clicking its row, but not a link or a button in it,
+       an editor, or a selection being made. */
     grid.addEventListener('click', function (e) {
-      if (!ctx.editing) return;
-      const s = window.getSelection();
-      if (s && !s.isCollapsed) return;   // selecting, not clicking
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed) return;
       if (e.target.closest('a, button, .editor')) return;
-      const t = e.target.closest('.note.editable') || e.target.closest('.cell.editable');
-      if (t && t._edit) t._edit();
+      const at = e.target.closest('.row.law:not(.vpanel)');
+      if (!at) return;
+      const v = s.byKey.get(at.getAttribute('data-key'));
+      choose(v && chosen && chosen.key === v.key ? null : v, false);
     });
 
     nav = neighbours(ix, meta, chapters, i);
     live = ctx;
     hideSel();
     UI.crumbs(crumbs);
-    UI.fill(host, [head, notes, grid, UI.el('footer.rfoot', [pager(ix, meta, sec, chapters, i, false)])]);
-    if (held) putBack(grid, held, raw);
+    UI.fill(host, [head, notes, grid, UI.el('footer.rfoot', [pager(ix, meta, title, chapters, i, false)])]);
+    show(chosen && s.byKey.get(chosen.key), false);
+    document.body.classList.add('paned');
+    if (held) {
+      putBack(grid, held, raw);
+      s.panel = grid.querySelector('.vpanel');
+      watchPane(s.panel);
+    }
     fitHead(head);
     document.title = ((sec.en && sec.en.title) || sec.id) + (cur && chapters.length > 1 ? ' · ' + lib.chapterName(cur) : '') + ' — MT Reader';
 
-    if (args[2]) {
-      const target = document.getElementById('law-' + (args[1] === 'i' ? 'i' : key) + '-' + args[2]);
-      if (target) {
-        target.classList.add('target');
-        if (args[3] && MT.search) MT.search.highlight(target, args[3], args[4] === 'w');
-        target.scrollIntoView({ block: 'center' });
+    /* A new chapter starts at its top; a repaint of the same one (a note
+       saved, a setting changed) stays where it was. */
+    if (host.getAttribute('data-at') !== ctx.page && !(target && arrived)) window.scrollTo(0, 0);
+    host.setAttribute('data-at', ctx.page);
+
+    if (target) {
+      const el = document.getElementById(target.id);
+      if (el) {
+        el.classList.add('target');
+        if (args[3] && MT.search) MT.search.highlight(el, args[3], args[4] === 'w');
+        if (arrived) el.scrollIntoView({ block: 'center' });
       }
     }
   }
@@ -874,9 +1392,8 @@
   MT.reader = {
     here: function () {
       if (UI.current().id !== 'read' || !live || !document.body.contains(live.grid)) return null;
-      const head = live.grid.parentNode.querySelector('.rhead');
-      const top = document.querySelector('.topbar').offsetHeight + (head ? head.offsetHeight : 0);
-      const rows = Array.from(live.grid.querySelectorAll('.row.law'));
+      const top = fixedTop();
+      const rows = Array.from(live.grid.querySelectorAll('.row.law:not(.vpanel)'));
       const r = rows.find(function (el) { return el.getBoundingClientRect().bottom > top + 24; }) || rows[0];
       return r ? { sec: live.id, key: r.getAttribute('data-key'), title: live.title } : null;
     }
@@ -922,11 +1439,21 @@
     }
   });
 
-  /* ← and → turn chapters, when the reader is open and nothing is being typed. */
+  /* ← and → turn chapters, when the reader is open and nothing is being
+     typed. j and k move the pane to the next and previous law, and Esc
+     closes it. */
   document.addEventListener('keydown', function (e) {
     if (UI.current().id !== 'read' || !nav || e.altKey || e.ctrlKey || e.metaKey) return;
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (live && (e.key === 'j' || e.key === 'k')) {
+      const s = live.units;
+      const at = chosen ? s.order.indexOf(s.byKey.get(chosen.key)) : -1;
+      const to = at < 0 ? s.order[0] : s.order[at + (e.key === 'j' ? 1 : -1)];
+      if (to) choose(to, true);
+      return;
+    }
+    if (live && e.key === 'Escape' && chosen && !e.defaultPrevented && !MT.editor.active()) { choose(null); return; }
     const href = e.key === 'ArrowLeft' ? nav.prev : e.key === 'ArrowRight' ? nav.next : null;
     if (href) { e.preventDefault(); location.hash = href; }
   });
