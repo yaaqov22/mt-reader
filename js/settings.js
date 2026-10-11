@@ -119,6 +119,12 @@
       { value: 'light', label: 'Light' },
       { value: 'dark', label: 'Dark' }
     ], d.theme, function () { MT.device.set({ theme: theme.value }); MT.applyTheme(); });
+    const palette = UI.select([
+      { value: 'sepia', label: 'Sepia' },
+      { value: 'blue', label: 'Blue' },
+      { value: 'gray', label: 'Gray' },
+      { value: 'mono', label: 'Black and white' }
+    ], d.palette, function () { MT.device.set({ palette: palette.value }); MT.applyTheme(); });
 
     const name = UI.input({ value: d.name, autocomplete: 'off', spellcheck: 'false', placeholder: 'e.g. your GitHub login',
       onchange: function () { MT.device.set({ name: name.value.trim() }); UI.toast('Saved.'); } });
@@ -169,7 +175,7 @@
         UI.field('Your name', name, 'Signs the review notes you write: **name** date - note. Checking the token fills it in.'),
         UI.el('p.field-hint', [UI.el('a', { href: '#/changes', text: 'Changes on this device' })])
       ]),
-      card('Appearance', [UI.field('Theme', theme)]),
+      card('Appearance', [UI.field('Theme', theme), UI.field('Colours', palette)]),
       UI.el('p.version', { text: 'MT Reader ' + MT.VERSION })
     ]);
     statusLine(statusHost);

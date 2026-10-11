@@ -53,10 +53,16 @@
     token: '',
     localBase: '../mishneh-torah-migration/',
     theme: 'system',
-    cols: { he: true, en: true, co: false, notes: false },
+    palette: 'sepia',   // the colour scheme: sepia, blue, gray or mono (black and white)
+    cols: { he: true, en: true },   // the texts showing: the Hebrew, the English or both
     marks: true,    // mark what the branch changed compared with baseBranch
     niqqud: true,
-    editing: false,
+    heSide: 'left',     // which side of the page the Hebrew is on: 'left' or 'right'
+    paneFolded: [],     // the notes pane's blocks folded away: 'co', 'notes'
+    paneOpen: true,     // whether the notes pane is open
+    panePos: 'bottom',  // …where it is: 'bottom', 'left' or 'right'
+    paneHeight: 0,      // …its height at the bottom in pixels, as dragged (0: a third of the screen)
+    paneWidth: 0,       // …its width at a side in pixels, as dragged (0: 440, or less on a smaller screen)
     name: '',       // signs review notes; filled from the token's login when checked
     login: '',      // the token's GitHub login, once known: names the submit branch
     lastSubmit: null  // { number, url, branch, … } of the last pull request submitted to

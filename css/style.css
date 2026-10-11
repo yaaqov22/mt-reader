@@ -85,6 +85,160 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
+/* The other colour schemes. Each is a data-palette on the root (sepia, above,
+   is the default and has none), with its light and dark values declared the
+   same three ways. A scheme's light and dark blocks set the same colours, so
+   whichever wins leaves nothing of the other behind. --bad, --edit, --ins and
+   --del mean the same in every scheme; --up changes only where it would be
+   lost against a blue accent. */
+
+:root[data-palette="blue"] {
+  --bg: #f5f8fc;
+  --panel: #ffffff;
+  --panel-lit: #eaf0f8;
+  --line: #d5dfec;
+  --line-soft: #e5ecf5;
+  --text: #16202e;
+  --dim: #4f5f75;
+  --faint: #8593a6;
+  --accent: #2a5694;
+  --accent-soft: #dce6f4;
+  --target: #fbf1c9;
+  --up: #1d7a76;
+  --up-soft: #d8efed;
+  --shadow: 0 1px 2px rgba(22, 32, 46, 0.06), 0 4px 16px rgba(22, 32, 46, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="blue"]:not([data-theme="light"]) {
+    --bg: #0f141c;
+    --panel: #161d28;
+    --panel-lit: #1e2734;
+    --line: #2a3546;
+    --line-soft: #212b39;
+    --text: #e3e9f2;
+    --dim: #9aa8bb;
+    --faint: #6b788b;
+    --accent: #7fa7e0;
+    --accent-soft: #1d2c44;
+    --target: #33301f;
+    --up: #6cc5bd;
+    --up-soft: #173230;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+}
+
+:root[data-palette="blue"][data-theme="dark"] {
+  --bg: #0f141c;
+  --panel: #161d28;
+  --panel-lit: #1e2734;
+  --line: #2a3546;
+  --line-soft: #212b39;
+  --text: #e3e9f2;
+  --dim: #9aa8bb;
+  --faint: #6b788b;
+  --accent: #7fa7e0;
+  --accent-soft: #1d2c44;
+  --target: #33301f;
+  --up: #6cc5bd;
+  --up-soft: #173230;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+:root[data-palette="gray"] {
+  --bg: #f6f6f6;
+  --panel: #ffffff;
+  --panel-lit: #eeeeee;
+  --line: #dcdcdc;
+  --line-soft: #e8e8e8;
+  --text: #1f1f1f;
+  --dim: #5e5e5e;
+  --faint: #929292;
+  --accent: #4b5563;
+  --accent-soft: #e4e6e9;
+  --target: #f3efd6;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="gray"]:not([data-theme="light"]) {
+    --bg: #161616;
+    --panel: #1e1e1e;
+    --panel-lit: #272727;
+    --line: #333333;
+    --line-soft: #2a2a2a;
+    --text: #e6e6e6;
+    --dim: #a3a3a3;
+    --faint: #737373;
+    --accent: #b8c0ca;
+    --accent-soft: #2c3036;
+    --target: #36332a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+}
+
+:root[data-palette="gray"][data-theme="dark"] {
+  --bg: #161616;
+  --panel: #1e1e1e;
+  --panel-lit: #272727;
+  --line: #333333;
+  --line-soft: #2a2a2a;
+  --text: #e6e6e6;
+  --dim: #a3a3a3;
+  --faint: #737373;
+  --accent: #b8c0ca;
+  --accent-soft: #2c3036;
+  --target: #36332a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+:root[data-palette="mono"] {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel-lit: #f2f2f2;
+  --line: #cfcfcf;
+  --line-soft: #e6e6e6;
+  --text: #000000;
+  --dim: #444444;
+  --faint: #777777;
+  --accent: #000000;
+  --accent-soft: #e6e6e6;
+  --target: #ebebeb;
+  --shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="mono"]:not([data-theme="light"]) {
+    --bg: #000000;
+    --panel: #000000;
+    --panel-lit: #141414;
+    --line: #3a3a3a;
+    --line-soft: #222222;
+    --text: #ffffff;
+    --dim: #bbbbbb;
+    --faint: #888888;
+    --accent: #ffffff;
+    --accent-soft: #262626;
+    --target: #262626;
+    --shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+}
+
+:root[data-palette="mono"][data-theme="dark"] {
+  --bg: #000000;
+  --panel: #000000;
+  --panel-lit: #141414;
+  --line: #3a3a3a;
+  --line-soft: #222222;
+  --text: #ffffff;
+  --dim: #bbbbbb;
+  --faint: #888888;
+  --accent: #ffffff;
+  --accent-soft: #262626;
+  --target: #262626;
+  --shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
 /* ------------------------------------------------------------------ base */
 
 * { box-sizing: border-box; }
