@@ -80,6 +80,9 @@
     },
     prev: function () { return svg('<path d="m14.5 6-6 6 6 6"/>'); },
     next: function () { return svg('<path d="m9.5 6 6 6-6 6"/>'); },
+    /* Reading aloud: play, and while reading, stop (drawn as pause). */
+    play: function () { return svg('<path d="M8 5.5v13l10.5-6.5z"/>'); },
+    pause: function () { return svg('<path d="M8.5 5.5v13M15.5 5.5v13"/>'); },
     chevron: function () { return svg('<path d="m7 10 5 5 5-5"/>'); },
     check: function () { return svg('<path d="m5 12.5 4.5 4.5L19 7.5"/>'); },
     close: function () { return svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'); },

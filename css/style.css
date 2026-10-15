@@ -701,8 +701,18 @@ a.crumb:hover { color: var(--accent); }
 .dm-check svg { width: 14px; height: 14px; stroke-width: 2.4; }
 .dm-item[aria-checked="true"] .dm-check { background: var(--accent); border-color: var(--accent); color: var(--bg); }
 .dm-one .dm-check { border-radius: 50%; }
+/* Reading aloud: play (or stop), and beside it its options, in a menu
+   drawn as the Display menu is. */
+.saywrap { position: relative; }
+.seg.saymore { width: 22px; }
+.seg.saymore svg { width: 15px; height: 15px; }
+.seg.saymore[aria-expanded="true"] { background: var(--panel-lit); }
+.say-voice { display: block; margin-top: 6px; }
+.say-voice .dm-sub { display: block; margin: 0 4px 3px; }
+.say-voice select { width: 100%; }
+.dm-sub.bad { color: var(--bad); }
 @media (max-width: 480px) {
-  .dispwrap { position: static; }
+  .dispwrap, .saywrap { position: static; }
   .dispmenu { right: 8px; top: calc(100% + 2px); }
 }
 
@@ -736,6 +746,8 @@ a.crumb:hover { color: var(--accent); }
 .grid .row.law:not(.vpanel) { cursor: pointer; border-radius: var(--radius-sm); }
 .grid .row.law:not(.vpanel):hover { background: var(--panel-lit); }
 .grid .row.law.sel:not(.vpanel) { background: var(--accent-soft); }
+/* Reading aloud: the law being read, marked in the accent at its edge. */
+.grid .row.law.speaking:not(.vpanel) { box-shadow: inset 3px 0 0 var(--accent); }
 .row.chhead h3 { font-size: 19px; color: var(--dim); }
 .row.chhead .cell.he h3 { font-family: var(--font-he); font-size: 21px; }
 .row.general { padding-top: 6px; padding-bottom: 6px; }

@@ -570,6 +570,7 @@
   document.addEventListener('selectionchange', MT.debounce(checkSel, 200));
   MT.bus.on('route', function (r) {
     if (r.id === 'read') return;
+    if (reading) stopReading();
     hideSel();
     document.body.classList.remove('paned');
   });
@@ -1228,6 +1229,12 @@
      added. */
   function choose(v, reveal, force) {
     if (!live) return Promise.resolve();
+    /* Choosing another law while reading aloud reads on from there;
+       closing the pane, or adding a note, stops it. */
+    if (reading && !reading.moving) {
+      if (v && !force) return readFrom(v, reading.until);
+      stopReading();
+    }
     /* Closing an editor repaints the page; that comes first. */
     const editing = MT.editor.active();
     return MT.editor.close().then(function () {
@@ -1251,6 +1258,7 @@
     live.units.panel.replaceWith(next);
     live.units.panel = next;
     watchPane(next);
+    paintReading();
     if (reveal && v) {
       /* Into view if it is under the headers, or under the pane at the
          bottom. */
@@ -1264,6 +1272,255 @@
   function fixedTop() {
     const head = document.querySelector('.screen.on .rhead');
     return document.querySelector('.topbar').offsetHeight + (head ? head.offsetHeight : 0);
+  }
+
+  /* ------------------------------------------------------- reading aloud */
+
+  /* What is being read aloud (speech.js): the law (a unit of the page,
+     `v`), where the reading stops (`until`: one of SAY_STOP's, or 'one' for
+     the law alone), and the chapter it is on. `moving` while the reading
+     itself chooses the law it reads (which doesn't stop it), and `carry`
+     while it turns to the next chapter. */
+  let reading = null;
+
+  const SAY_STOP = {
+    page: 'The end of the chapter',
+    law: 'The end of the law',
+    never: 'Keep reading until I stop it'
+  };
+  function sayStop() {
+    const s = MT.device.get('sayStop');
+    return SAY_STOP[s] ? s : 'page';
+  }
+
+  /* The units of a text, by key, made once per document. */
+  const unitTexts = new WeakMap();
+  function unitText(doc, key) {
+    if (!doc) return '';
+    let m = unitTexts.get(doc);
+    if (!m) {
+      m = new Map();
+      F.units(doc).forEach(function (u) {
+        m.set(u.key, u.law ? [u.law.text].concat(u.law.extra).join('\n') : u.list[u.at]);
+      });
+      unitTexts.set(doc, m);
+    }
+    return m.get(key) || '';
+  }
+
+  /* A law's words to speak, in the languages chosen: the Hebrew pointed
+     (whether or not the page shows its niqqud), which a voice reads more
+     surely, and the English. Without a Hebrew voice on the device, only the
+     English. */
+  function lawSpeech(v) {
+    const S = MT.speech;
+    const want = MT.device.get('sayLang');
+    let langs = want === 'en' ? ['en'] : want === 'both' ? ['he', 'en'] : ['he'];
+    if (langs.indexOf('he') >= 0 && !S.voiceFor('he')) {
+      langs = ['en'];
+      if (!reading.warned) UI.toast('There is no Hebrew voice on this device, so the English is read. The reading options (beside the play button) say where to get one.', 5000);
+      reading.warned = true;
+    }
+    const raw = v.ctx.raw;
+    return langs.map(function (lang) {
+      return { lang: lang, text: lang === 'he' ? S.hebrew(unitText(raw.hen || raw.he, v.key)) : S.english(unitText(raw.en, v.key)) };
+    }).filter(function (it) { return it.text; });
+  }
+
+  /* Read law `v` aloud, choosing it, and on until `until`. */
+  function readFrom(v, until) {
+    if (!MT.speech.supported) { UI.toast('This browser can’t read aloud.'); return Promise.resolve(); }
+    if (!v || !live) return Promise.resolve();
+    const r = reading = { v: v, until: until, page: live.page, moving: true, carry: false, warned: !!(reading && reading.warned) };
+    const items = lawSpeech(v);
+    if (items.length) {
+      MT.speech.speak(items, {
+        onDone: readNext,
+        onError: function (e) { UI.toast('Reading aloud stopped: ' + (e.error || 'the voice failed') + '.'); stopReading(); }
+      });
+    } else {
+      setTimeout(readNext, 0);   // a law with nothing to read in the language chosen
+    }
+    return (chosen && chosen.key === v.key ? Promise.resolve() : choose(v, true)).then(function () {
+      if (reading === r) r.moving = false;
+      paintReading();
+    });
+  }
+
+  /* After a law: the next, unless the reading stops here (at the law, at the
+     chapter's end); at the chapter's end, kept reading, the next chapter's
+     first. A note being written stops it. */
+  function readNext() {
+    const r = reading;
+    if (!r) return;
+    if (r.until === 'one' || r.until === 'law' || MT.editor.active() || !live) { stopReading(); return; }
+    const s = live.units;
+    const to = s.order[s.order.indexOf(s.byKey.get(r.v.key)) + 1];
+    if (to) { readFrom(to, r.until); return; }
+    if (r.until === 'never' && nav && nav.next) {
+      r.carry = true;
+      location.hash = nav.next;
+      return;
+    }
+    stopReading();
+  }
+
+  function stopReading() {
+    reading = null;
+    if (MT.speech.supported) MT.speech.stop();
+    paintReading();
+  }
+
+  /* The play button, and p: read aloud from the chosen law (or the one at
+     the top of the screen); while reading, stop, the law staying chosen so
+     that playing again starts it over. */
+  function sayToggle() {
+    if (reading) { stopReading(); return; }
+    if (!live) return;
+    const s = live.units;
+    const here = MT.reader.here();
+    readFrom(chosen && s.byKey.get(chosen.key) || here && s.byKey.get(here.key) || s.order[0], sayStop());
+  }
+
+  /* J and K: the next or previous law, read alone. */
+  function sayStep(d) {
+    if (!live) return;
+    const s = live.units;
+    const at = chosen ? s.order.indexOf(s.byKey.get(chosen.key)) : -1;
+    const to = at < 0 ? s.order[0] : s.order[at + d];
+    if (to) readFrom(to, 'one');
+  }
+
+  /* The law being read marked in the text, and the play button saying what
+     it would do now. */
+  function paintReading() {
+    if (live && live.grid) {
+      live.grid.querySelectorAll('.speaking').forEach(function (el) { el.classList.remove('speaking'); });
+      const r = reading && reading.page === live.page && document.getElementById(reading.v.id);
+      if (r) r.classList.add('speaking');
+    }
+    document.querySelectorAll('.say-btn').forEach(paintSay);
+  }
+
+  function paintSay(b) {
+    const icon = reading ? 'pause' : 'play';
+    const label = reading ? 'Stop reading (p); play starts the law again'
+      : 'Read aloud from the chosen law, or from the top of the screen (p)';
+    if (b._icon !== icon) { UI.fill(b, [MT.icons[icon]()]); b._icon = icon; }
+    b.setAttribute('aria-pressed', reading ? 'true' : 'false');
+    b.title = label;
+    b.setAttribute('aria-label', label);
+  }
+
+  /* The reading options, beside the play button: what is read, where it
+     stops, how fast, and in which voices. They stay open across the
+     repaints of the page, as the Display menu does. */
+  let sayOpen = false;
+
+  function setSayOpen(open) {
+    sayOpen = open;
+    const wrap = document.querySelector('.screen.on .saywrap');
+    if (!wrap) return;
+    const menu = wrap.querySelector('.saymenu');
+    if (open) fillSayMenu(menu);
+    menu.hidden = !open;
+    wrap.querySelector('.saymore').setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) document.documentElement.style.setProperty('--dm-top', Math.round(menu.getBoundingClientRect().top) + 'px');
+  }
+
+  document.addEventListener('click', function (e) {
+    if (!sayOpen || !document.contains(e.target)) return;   // a choice that has refilled the menu
+    const wrap = document.querySelector('.screen.on .saywrap');
+    if (!wrap || !wrap.contains(e.target)) setSayOpen(false);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || !sayOpen) return;
+    e.preventDefault();   // this Escape is the menu's, not the reading's or the pane's
+    setSayOpen(false);
+    const b = document.querySelector('.screen.on .saymore');
+    if (b) b.focus();
+  });
+  if (MT.speech.supported) {
+    MT.speech.onVoices(function () {
+      const menu = sayOpen && document.querySelector('.screen.on .saymenu');
+      if (menu) fillSayMenu(menu);
+    });
+  }
+
+  /* Each choice is kept at once and takes effect from the next law read;
+     the page isn't repainted, only the menu. */
+  function fillSayMenu(menu) {
+    const S = MT.speech;
+    const keep = function (key, value) {
+      const p = {};
+      p[key] = value;
+      MT.device.set(p);
+      fillSayMenu(menu);
+    };
+    /* A row of buttons choosing one of `opts` ([value, label], in order). */
+    const segs = function (key, label, opts) {
+      return UI.el('div.segs.dm-segs', { role: 'group', 'aria-label': label }, opts.map(function (o) {
+        const v = o[0];
+        return UI.el('button.seg', {
+          type: 'button', text: o[1], 'aria-pressed': String(MT.device.get(key)) === v ? 'true' : 'false',
+          onclick: function () { keep(key, key === 'sayRate' ? +v : v); }
+        });
+      }));
+    };
+    const voice = function (code, key, name) {
+      const all = S.voices(code);
+      if (!all.length) return null;
+      const sel = UI.select([{ value: '', label: 'The device’s choice (' + S.defaultVoice(code).name + ')' }].concat(all.map(function (v) {
+        return { value: v.voiceURI, label: v.name + (v.localService ? '' : ' (online)') };
+      })), MT.device.get(key), function () { keep(key, sel.value); });
+      sel.setAttribute('aria-label', name);
+      return sel;
+    };
+    const he = voice('he', 'sayVoiceHe', 'Hebrew voice');
+    const en = voice('en', 'sayVoiceEn', 'English voice');
+    const stop = sayStop();
+
+    UI.fill(menu, [
+      UI.el('div.dm-head', { text: 'Read' }),
+      segs('sayLang', 'Read', [['he', 'Hebrew'], ['en', 'English'], ['both', 'Both']]),
+      MT.device.get('sayLang') === 'both' ? UI.el('p.dm-sub', { text: 'Each law in Hebrew, then English.' }) : null,
+
+      UI.el('div.dm-head', { text: 'Stop at' }),
+      UI.el('div', { role: 'radiogroup', 'aria-label': 'Stop at' }, Object.keys(SAY_STOP).map(function (k) {
+        return UI.el('button.dm-item.dm-one', {
+          type: 'button', role: 'radio', 'aria-checked': stop === k ? 'true' : 'false',
+          onclick: function () { keep('sayStop', k); }
+        }, [UI.el('span.dm-check', [MT.icons.check()]), UI.el('span', { text: SAY_STOP[k] })]);
+      })),
+      UI.el('p.dm-sub', { text: stop === 'never' ? 'From one chapter into the next.' : 'J and K read the next or previous law alone.' }),
+
+      UI.el('div.dm-head', { text: 'Speed' }),
+      segs('sayRate', 'Speed', [['0.7', '70%'], ['0.85', '85%'], ['1', '100%'], ['1.15', '115%'], ['1.3', '130%']]),
+
+      UI.el('div.dm-head', { text: 'Voices' }),
+      he ? UI.el('label.say-voice', [UI.el('span.dm-sub', { text: 'Hebrew' }), he])
+        : UI.el('p.dm-sub.bad', { text: 'There is no Hebrew voice on this device. Microsoft Edge has natural Hebrew voices (Avri and Hila) built in; ' +
+          'on Windows one can be added under Settings › Time & language › Speech; iPhones, iPads, Macs and Android phones have one.' }),
+      en ? UI.el('label.say-voice', [UI.el('span.dm-sub', { text: 'English' }), en])
+        : UI.el('p.dm-sub.bad', { text: 'There is no English voice on this device.' }),
+      UI.el('p.dm-sub', { text: 'Read without the numbers of a law’s parts or the sources of the verses it quotes; the divine name, ה\', as HaShem.' })
+    ]);
+  }
+
+  /* In the header: play (or stop), and beside it the reading options. */
+  function sayControls() {
+    if (!MT.speech.supported) return null;
+    const play = UI.el('button.seg.say-btn', { type: 'button', onclick: sayToggle });
+    paintSay(play);
+    const more = UI.el('button.seg.saymore', {
+      type: 'button', 'aria-haspopup': 'true', 'aria-expanded': sayOpen ? 'true' : 'false',
+      title: 'Reading aloud: what is read, where it stops, the speed and the voices', 'aria-label': 'Reading aloud options',
+      onclick: function () { setSayOpen(!sayOpen); }
+    }, [MT.icons.chevron()]);
+    const menu = UI.el('div.dispmenu.saymenu', { role: 'group', 'aria-label': 'Reading aloud' });
+    if (sayOpen) fillSayMenu(menu);
+    menu.hidden = !sayOpen;
+    return UI.el('div.saywrap', [UI.el('div.segs.say', { role: 'group', 'aria-label': 'Read aloud' }, [play, more]), menu]);
   }
 
   /* -------------------------------------------------------------- render */
@@ -1296,7 +1553,7 @@
     const marked = MT.review.chapters(ctx.branch);
     const head = UI.el('header.rhead', [
       UI.el('div.rbar', [pager(ix, meta, title, chapters, i, true, marked),
-        UI.el('div.toggles', [displayMenu(raw), marksToggle() ? UI.el('div.segs', [marksToggle()]) : null])])
+        UI.el('div.toggles', [displayMenu(raw), sayControls(), marksToggle() ? UI.el('div.segs', [marksToggle()]) : null])])
     ]);
     const notes = UI.el('div.rnotes', [MT.session.active() ? MT.session.line() : null, branchNote(ctx, up), draftNote(ctx)]);
     if (!sec.en) notes.appendChild(UI.note('This section has no English file yet.'));
@@ -1350,6 +1607,10 @@
 
     nav = neighbours(ix, meta, chapters, i);
     live = ctx;
+    /* Reading aloud carries on into the next chapter it turned to, and
+       stops at any other. */
+    const carried = reading && reading.page !== ctx.page && reading.carry;
+    if (reading && reading.page !== ctx.page) stopReading();
     hideSel();
     UI.crumbs(crumbs);
     UI.fill(host, [head, notes, grid, UI.el('footer.rfoot', [pager(ix, meta, title, chapters, i, false)])]);
@@ -1376,6 +1637,7 @@
         if (arrived) el.scrollIntoView({ block: 'center' });
       }
     }
+    if (carried && s.order.length) readFrom(s.order[0], 'never');
   }
 
   /* The header sticks under the top bar; rows scrolled to must clear both. */
@@ -1441,11 +1703,15 @@
 
   /* ← and → turn chapters, when the reader is open and nothing is being
      typed. j and k move the pane to the next and previous law, and Esc
-     closes it. */
+     closes it (or first stops reading aloud). p reads aloud, and stops;
+     J and K read the next and previous law alone. */
   document.addEventListener('keydown', function (e) {
     if (UI.current().id !== 'read' || !nav || e.altKey || e.ctrlKey || e.metaKey) return;
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (live && e.key === 'p' && MT.speech.supported) { e.preventDefault(); sayToggle(); return; }
+    if (live && (e.key === 'J' || e.key === 'K') && MT.speech.supported) { e.preventDefault(); sayStep(e.key === 'J' ? 1 : -1); return; }
+    if (reading && e.key === 'Escape' && !e.defaultPrevented && !MT.editor.active()) { stopReading(); return; }
     if (live && (e.key === 'j' || e.key === 'k')) {
       const s = live.units;
       const at = chosen ? s.order.indexOf(s.byKey.get(chosen.key)) : -1;

@@ -66,7 +66,8 @@ No build step. Serve the folder over HTTP and open `index.html`.
 | `#/settings` | source, token, your name, offline, theme and colours |
 
 ← and → move between chapters; j and k move the notes pane to the next and
-previous law, Esc closes it; / opens search.
+previous law, Esc closes it; / opens search; p reads aloud (and stops), and
+J and K read the next and previous law aloud.
 
 **Reading.** The header names the section and the chapter between the arrows.
 The section's name opens the contents (every book, each section opening on a
@@ -79,6 +80,38 @@ its bar and resized from its edge (kept on the device). A law with notes has
 its number circled, green when you have changed them, blue when the branch
 has. Settings has four colour schemes (sepia, blue, gray, black and white),
 each light and dark.
+
+**Reading aloud.** The play button in the reader's header (or **p**) reads
+aloud from the chosen law, or from the law at the top of the screen. Each
+law is chosen and marked as it is read, and its notes follow in the pane.
+While it reads, the button (drawn as pause), **p** or **Esc** stops it. The
+law stays chosen, so playing again starts it over. Choosing another law while
+reading reads on from there. **J** and **K** (Shift+j and Shift+k) move to
+the next or previous law and read it alone.
+
+The arrow beside the play button opens the reading options, which are kept
+on the device:
+- what is read: Hebrew, English, or both (each law in Hebrew, then English);
+- where it stops: the end of the chapter, the end of the law, or not until
+  stopped (going on into the next chapter);
+- the speed;
+- the voices.
+
+The voices are the browser's own (the Web Speech API), so nothing leaves the
+device and there is no key. English has a voice everywhere. Hebrew depends on
+the device: Edge has natural Hebrew voices (Avri, Hila), iOS and macOS have
+Carmit, Android has Google's, and desktop Chrome often has none. Without one,
+the English is read. The text is prepared for the voice in `js/speech.js`:
+- the Hebrew is read from the pointed edition, whether or not the page shows
+  niqqud;
+- the voice pauses at the text's punctuation (a dash too);
+- the numbers of a law's parts (`[ב]`, `(א)`, `[2]`, `(1)`) and the sources of
+  the verses it quotes (`(ירמיהו י,י)`, `(שם)`, `(Jeremiah 10:10)`, `(ibid.)`)
+  are left out;
+- the divine name, ה', is read as HaShem, keeping any prefix (לַה' as
+  לַשֵּׁם), except where ה' is a number (the calendar's reckonings).
+
+`node tools/test-speech.mjs` checks the preparation over every law.
 
 **Editing.** There is no edit mode. A law's Hebrew and English each end in a
 pencil (on the row pointed at or chosen) that opens it in place; each note in

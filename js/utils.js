@@ -63,6 +63,11 @@
     panePos: 'bottom',  // …where it is: 'bottom', 'left' or 'right'
     paneHeight: 0,      // …its height at the bottom in pixels, as dragged (0: a third of the screen)
     paneWidth: 0,       // …its width at a side in pixels, as dragged (0: 440, or less on a smaller screen)
+    sayLang: 'he',      // reading aloud: 'he', 'en' or 'both' (each law in Hebrew, then English)
+    sayVoiceHe: '',     // …the voices chosen (voiceURI), or '' for the device's own choice
+    sayVoiceEn: '',
+    sayRate: 1,         // …the speed, 1 as the voice speaks
+    sayStop: 'page',    // …where it stops: 'page' (the chapter), 'law', or 'never' (on into the next chapter)
     name: '',       // signs review notes; filled from the token's login when checked
     login: '',      // the token's GitHub login, once known: names the submit branch
     lastSubmit: null  // { number, url, branch, … } of the last pull request submitted to
