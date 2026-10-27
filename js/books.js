@@ -14,14 +14,24 @@
   const UI = MT.ui;
   let seq = 0;
 
+  /* A section on the home screen: its id and names, opening on a grid of
+     its chapters (as Tanakh Reader's books do); a section of one page, or
+     one chapter, is a link straight to it. */
   function sectionLink(s) {
     const first = s.chapters[0];
     const chapters = s.chapters.filter(function (c) { return c.n != null; }).length;
-    return UI.el('a.sec', { href: UI.href('read', first ? [s.id, first.key] : [s.id]), 'data-sec': s.id }, [
+    const parts = [
       UI.el('span.sec-id', { text: s.id }),
       UI.el('span.sec-en', { text: s.en || s.id }),
       UI.el('span.sec-he', { lang: 'he', dir: 'rtl', text: s.he || '' }),
       UI.el('span.sec-meta', { text: chapters ? chapters + (chapters === 1 ? ' chapter' : ' chapters') : '' })
+    ];
+    if (s.chapters.length < 2 || MT.lib.onePage(s.chapters)) {
+      return UI.el('a.sec', { href: UI.href('read', first ? [s.id, first.key] : [s.id]), 'data-sec': s.id }, parts);
+    }
+    return UI.el('details.homesec', { 'data-sec': s.id }, [
+      UI.el('summary.sec', parts),
+      chapterGrid(s.id, s.en || s.id, s.chapters)
     ]);
   }
 
@@ -55,7 +65,7 @@
     MT.review.info().then(function (info) {
       if (!info || mine !== seq) return;
       info.sections.forEach(function (layers, id) {
-        const a = host.querySelector('a.sec[data-sec="' + id + '"] .sec-meta');
+        const a = host.querySelector('[data-sec="' + id + '"] .sec-meta');
         if (a) a.appendChild(UI.el('span.tag.up', { text: 'changed', title: 'Changed on this branch compared with ' + info.base }));
       });
     }, function () {});
