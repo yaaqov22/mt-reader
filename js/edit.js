@@ -142,10 +142,12 @@
     if ((m = /^0([a-z]?)$/.exec(c))) return [1, m[1] ? m[1].charCodeAt(0) - 96 : 0];
     if (/^\d+$/.test(c)) return [2, +c];
     if ((m = /^x(\d+)$/.exec(c))) return [3, +m[1]];
-    return [4, 0];
+    if (c === 'end') return [4, 0];
+    return [5, 0];
   }
 
   function unitRank(h) {
+    if (h === 'h') return [-1, 0];   // a heading, before what it heads
     const m = /^(i?)(\d+)$/.exec(h || '');
     return m ? [m[1] ? 0 : 1, +m[2]] : [2, 0];
   }
@@ -167,7 +169,7 @@
   /* A notes document for a section that has none yet: the English title, and
      no chapters until a note needs one. */
   function newNotesDoc(en) {
-    return { front: [], title: (en && en.title) || null, intro: [], chapters: [], warnings: [] };
+    return { front: [], title: (en && en.title) || null, intro: [], chapters: [], end: [], warnings: [] };
   }
 
   /* The chapter of a notes document that holds notes on chapter `c` (the

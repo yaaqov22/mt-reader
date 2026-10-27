@@ -45,7 +45,7 @@
   const E = MT.edit;
 
   const clone = doc => JSON.parse(JSON.stringify(doc));
-  const emptyDoc = () => ({ front: [], title: null, intro: [], chapters: [], warnings: [] });
+  const emptyDoc = () => ({ front: [], title: null, intro: [], chapters: [], end: [], warnings: [] });
 
   function strip(doc) {
     const d = Object.assign({}, doc);

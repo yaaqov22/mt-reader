@@ -8,12 +8,14 @@
  *
  *   Text (Hebrew/*-he.md, Hebrew/*-hen.md with niqqud, Translation/*-en.md)
  *     { front[], title, intro[], chapters[{ key, n, name, heading, implicit,
- *                                            intro[], laws[{ n, text, extra[] }] }] }
+ *                                            intro[], laws[{ n, text, extra[] }] }],
+ *       end[] }
  *
  *   Notes (Commentary/*-en-c.md and Notes/*-notes.md)
  *     { front[], title, intro[], chapters[{ key, n, name, heading, implicit,
  *                                            intro[], notes[{ label, c, h, h2, i,
- *                                                             text, more[] }] }] }
+ *                                                             text, more[] }] }],
+ *       end[] }
  *
  * Every "block" is one paragraph of verbatim markdown (it may contain single
  * newlines — verse lines, lists — which the reader preserves). Nothing is lost:
@@ -35,6 +37,9 @@
  *     which also keeps a Hebrew paragraph that merely starts with a word from
  *     being read as a label).
  *   - Notes: "[^3.12.1]: text", continuation paragraphs indented with one tab.
+ *   - A line "---" ends the laws: what follows is the section's closing (the
+ *     "Blessed is the Merciful One…" that ends each book), paragraphs of its
+ *     own rather than more of the last law.
  */
 (function (root) {
   'use strict';
@@ -193,7 +198,7 @@
   /* ---------- shared skeleton ---------- */
 
   function newDoc() {
-    return { front: [], title: null, intro: [], chapters: [], warnings: [] };
+    return { front: [], title: null, intro: [], chapters: [], end: [], warnings: [] };
   }
 
   function newChapter(doc, info, headingRaw) {
@@ -224,7 +229,11 @@
     const doc = newDoc();
     const warn = m => doc.warnings.push(m);
     let ch = null;
+    let ending = false;
     for (const b of splitBlocks(src)) {
+      // After "---", everything is the closing, verbatim.
+      if (ending) { doc.end.push(b); continue; }
+      if (b === '---') { ending = true; continue; }
       const [first, rest] = firstLineRest(b);
 
       if (doc.title == null && !ch && /^# /.test(first) && !rest) {
@@ -273,6 +282,7 @@
       out.push(...ch.intro);
       chapterBody(ch, out);
     }
+    if (doc.end && doc.end.length) out.push('---', ...doc.end);
     return joinBlocks(out);
   }
 
@@ -339,9 +349,11 @@
   // "<chapter>.<unit>[-<unit>].<n>", naming a text unit (see units() below):
   // "3.5.1" law 3:5, "0b.4.1" law 4 of the second unnumbered run, "i.3.1"
   // paragraph 3 of the section's opening, "x2.i4.1" paragraph 4 of the second
-  // unnumbered chapter's intro. c and h are kept as the strings of the key.
+  // unnumbered chapter's intro, "end.1.1" paragraph 1 of the section's closing,
+  // "i.h.1" the section's title (a book's, on its opening), "3.h.1" chapter
+  // 3's heading. c and h are kept as the strings of the key.
   function parseNoteLabel(label) {
-    const m = label.match(/^(i|x\d+|\d+[a-z]?)\.(i?\d+)(?:-(i?\d+))?\.(\d+)$/);
+    const m = label.match(/^(i|end|x\d+|\d+[a-z]?)\.(h|i?\d+)(?:-(i?\d+))?\.(\d+)$/);
     return m ? { c: m[1], h: m[2], h2: m[3] || null, i: +m[4] } : { c: null, h: null, h2: null, i: null };
   }
 
@@ -444,7 +456,8 @@
   // "0b:4"). So is every paragraph outside a law, numbered from 1:
   //   "i:3"    the section's opening (front matter, then the intro under the
   //            title: a book's opening, a section's list of commandments)
-  //   "x2:i4"  a chapter's intro (0-4's unnumbered chapters are nothing else)
+  //   "x2:i4"  a chapter's intro (0-5's unnumbered chapters are nothing else)
+  //   "end:1"  the section's closing, after its last law
   // A paragraph unit is { key, ch (null for the opening), list, at, n }, its
   // text being list[at]; a law unit is { key, ch, law }.
   function paraKey(ch, n) {
@@ -462,20 +475,41 @@
       ch.intro.forEach((b, at) => out.push({ key: paraKey(ch, at + 1), ch, list: ch.intro, at, n: at + 1 }));
       for (const law of ch.laws || []) out.push({ key: `${ch.key}:${law.n}`, ch, law });
     }
+    (doc.end || []).forEach((b, at) => out.push({ key: 'end:' + (at + 1), ch: null, list: doc.end, at, n: at + 1, end: true }));
     return out;
   }
 
   // A key's own paragraph number, or null for a law: "i:3" → 3, "x2:i4" → 4.
   function paraNumber(key) {
-    const m = /^(?:i:(\d+)|[^:]+:i(\d+))$/.exec(key || '');
-    return m ? +(m[1] || m[2]) : null;
+    const m = /^(?:i:(\d+)|end:(\d+)|[^:]+:i(\d+))$/.exec(key || '');
+    return m ? +(m[1] || m[2] || m[3]) : null;
   }
 
-  // How a unit is named to people: "law 3:5", "opening ¶3", "¶4 of x2".
+  // Headings can be noted too, though they are not units of the text: the
+  // section's title "i:h" and a chapter's heading "3:h", "x2:h".
+  const isHeadKey = key => /^[^:]+:h$/.test(key || '');
+
+  // The heading keys a text document has: its title, its chapters' headings.
+  function headKeys(doc) {
+    const out = [];
+    if (!doc) return out;
+    if (doc.title != null) out.push('i:h');
+    for (const ch of doc.chapters) if (!ch.implicit) out.push(`${ch.key}:h`);
+    return out;
+  }
+
+  // How a unit is named to people: "law 3:5", "opening ¶3", "¶4 of x2",
+  // "the title", "chapter 3's heading".
   function unitName(key) {
+    if (isHeadKey(key)) {
+      const c = key.split(':')[0];
+      return c === 'i' ? 'the title' : /^\d+$/.test(c) ? 'chapter ' + c + '’s heading' : 'the heading of ' + c;
+    }
     const p = paraNumber(key);
     if (p == null) return 'law ' + key;
-    return key.startsWith('i:') ? 'opening ¶' + p : '¶' + p + ' of ' + key.split(':')[0];
+    if (key.startsWith('i:')) return 'opening ¶' + p;
+    if (key.startsWith('end:')) return 'closing ¶' + p;
+    return '¶' + p + ' of ' + key.split(':')[0];
   }
 
   MT.format = {
@@ -483,6 +517,6 @@
     splitBlocks, parseHeading, parseLabel, headingText, labelText,
     parseText, writeText, parseNotes, writeNotes, parseNoteLabel,
     parse, write, paths, classify, lawMap, noteKey, SECTION_RE,
-    units, paraKey, paraNumber, unitName,
+    units, paraKey, paraNumber, unitName, isHeadKey, headKeys,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

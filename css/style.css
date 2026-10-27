@@ -750,6 +750,20 @@ a.crumb:hover { color: var(--accent); }
 .grid .row.law.speaking:not(.vpanel) { box-shadow: inset 3px 0 0 var(--accent); }
 .row.chhead h3 { font-size: 19px; color: var(--dim); }
 .row.chhead .cell.he h3 { font-family: var(--font-he); font-size: 21px; }
+/* A section's title over its text (a book's, at its opening). */
+.row.sectitle h2 { font-size: 23px; margin: 6px 0 2px; }
+.row.sectitle .cell.he h2 { font-family: var(--font-he); font-size: 26px; }
+/* A heading with notes: their counts, with their icons, beside it. */
+.hnote {
+  display: inline-flex; align-items: center; gap: 8px; vertical-align: middle;
+  margin-inline-start: 10px; padding: 1px 7px;
+  border: 1px solid currentColor; border-radius: 999px;
+  color: var(--accent); font-family: var(--font-ui); font-size: 12px; font-weight: 700;
+}
+.hnote > span { display: inline-flex; align-items: center; gap: 3px; }
+.hnote svg { width: 13px; height: 13px; }
+/* Between the last law and the closing that ends a book. */
+.grid .row.closing { padding: 0; margin-top: 10px; border-bottom: 3px double var(--line); }
 .row.general { padding-top: 6px; padding-bottom: 6px; }
 .row.general .cell.co p { max-width: 760px; }
 

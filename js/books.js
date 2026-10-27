@@ -88,13 +88,14 @@
   }
 
   /* One section in the contents: its name, opening on its chapters; or,
-     with only one, a link straight to it. */
+     with only one, or none numbered (it reads as one page), a link straight
+     to it. */
   function sectionEntry(s) {
     const name = [
       UI.el('span.sec-en', { text: s.en || s.id }),
       UI.el('span.sec-he', { lang: 'he', dir: 'rtl', text: s.he || '' })
     ];
-    if (s.chapters.length < 2) {
+    if (s.chapters.length < 2 || MT.lib.onePage(s.chapters)) {
       const first = s.chapters[0];
       return UI.el('a.tsec', { href: UI.href('read', first ? [s.id, first.key] : [s.id]), 'data-sec': s.id }, name);
     }

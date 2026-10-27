@@ -154,6 +154,29 @@ test('setLaw edits a paragraph unit, which stays one paragraph', () => {
   assert.equal(E.revert(doc, d2, 'en', ch[0]).text, OPEN);
 });
 
+const CLOSE = [
+  '## Laws of Things, Chapter 1',
+  '1:1 Last law.',
+  'More of the last law.',
+  '---',
+  'Blessed is the Merciful One.',
+].join('\n\n') + '\n';
+
+test('a closing after "---" is its own units, not more of the last law', () => {
+  const doc = F.parse(CLOSE, 'en');
+  assert.equal(F.write(doc, 'en'), CLOSE);
+  assert.deepEqual(doc.chapters[0].laws[0].extra, ['More of the last law.']);
+  assert.deepEqual(doc.end, ['Blessed is the Merciful One.']);
+  assert.deepEqual(F.units(doc).map(u => u.key), ['1:1', 'end:1']);
+  assert.equal(F.paraNumber('end:1'), 1);
+  assert.equal(F.unitName('end:1'), 'closing ¶1');
+  assert.equal(E.setLaw(doc, 'en', 'end:1', 'Blessed be.').text, CLOSE.replace('Blessed is the Merciful One.', 'Blessed be.'));
+  throwsEdit(() => E.setLaw(doc, 'en', '1:1', 'Text.\n\n---\n\nSneaky.'), /structure/);
+  const co = E.addNote(null, 'co', 'end:1', 'On the closing.', doc);
+  assert.equal(co.label, 'end.1.1');
+  assert.equal(F.noteKey(F.parse(co.text, 'co').chapters[0].notes[0]), 'end:1');
+});
+
 test('notes on paragraphs and unnumbered runs go before the first heading, in unit order', () => {
   const en = F.parse(EN, 'en');
   let co = E.addNote(F.parse(CO, 'co'), 'co', 'x1:i2', 'On x1 ¶2.', en);
@@ -174,6 +197,32 @@ test('notes on paragraphs and unnumbered runs go before the first heading, in un
   assert.deepEqual(back.chapters[0].notes.map(F.noteKey), ['i:3', '0b:4', 'x1:i2']);
   assert.equal(E.nextNoteLabel(back, 'i:3'), 'i.3.2');
   assert.equal(E.setNote(co.doc, 'co', 'i.3.1', '').text.includes('i.3.1'), false);
+});
+
+test('notes on headings: the title at the top, a chapter heading before its laws', () => {
+  const en = F.parse(EN, 'en');
+  assert.deepEqual(F.headKeys(en), ['i:h', '1:h', '2:h']);
+  assert.equal(F.isHeadKey('2:h'), true);
+  assert.equal(F.isHeadKey('2:1'), false);
+  assert.equal(F.paraNumber('2:h'), null);
+  assert.equal(F.unitName('i:h'), 'the title');
+  assert.equal(F.unitName('2:h'), 'chapter 2’s heading');
+  let co = E.addNote(F.parse(CO, 'co'), 'co', '2:h', 'Relevant to Noahides.', en);
+  assert.equal(co.label, '2.h.1');
+  co = E.addNote(co.doc, 'co', 'i:h', 'About the whole section.', en);
+  assert.equal(co.label, 'i.h.1');
+  assert.equal(co.text, [
+    '# Laws of Things',
+    '[^i.h.1]: About the whole section.',
+    '## Laws of Things, Chapter 2',
+    '[^2.h.1]: Relevant to Noahides.',
+    '[^2.1.1]: *Only* - A note.',
+    '\tIts continuation.',
+  ].join('\n\n') + '\n');
+  const back = F.parse(co.text, 'co');
+  assert.deepEqual(back.warnings, []);
+  assert.equal(F.noteKey(back.chapters[1].notes[0]), '2:h');
+  assert.equal(E.nextNoteLabel(back, '2:h'), '2.h.2');
 });
 
 /* ---------- changes and revert ---------- */

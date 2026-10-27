@@ -209,6 +209,14 @@
       return out;
     },
 
+    /* Whether a section reads as one page: it has no numbered chapters (the
+       introduction's sections, the Order of Prayer), so its runs and
+       unnumbered chapters are parts of one text, not pages of their own.
+       Takes lib.chapters() rows or index.json's chapters. */
+    onePage: function (chapters) {
+      return chapters.every(function (c) { return (c.en || c.he || c).n == null; });
+    },
+
     /* A chapter's display name: "Chapter 3", or its own heading. */
     chapterName: function (row) {
       const ch = row.en || row.he;
