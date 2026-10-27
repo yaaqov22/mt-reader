@@ -73,6 +73,7 @@
   let seq = 0;
   let nav = null;   // { prev, next } hrefs for the keyboard
   let live = null;  // the rendered chapter's context (ctx, below)
+  let flagMap = new Map();   // chapters relevant to Noahides: "<section>/<chapter>" → name
 
   const LAYER_NAME = { he: 'Hebrew', hen: 'pointed Hebrew', en: 'English', co: 'commentary', notes: 'review notes' };
   const ANN = ['co', 'notes'];
@@ -1139,6 +1140,23 @@
     }, [(layer === 'notes' ? MT.icons.noteAdd : MT.icons.commentAdd)()]);
   }
 
+  /* In the pane, on a chapter's heading: whether the chapter is relevant to
+     Noahides. Ticking it flags the chapter in Commentary/noahide.md, a draft
+     on this device like any edit, submitted from Changes. */
+  function flagToggle(v) {
+    const key = E.flagKey(v.ctx.id, v.flag.chapter);
+    const box = UI.el('input', {
+      type: 'checkbox', checked: flagMap.has(key),
+      onchange: function () {
+        box.disabled = true;
+        lib.flag(v.ctx.id, v.flag.chapter, v.flag.name, box.checked)
+          .then(function () { UI.refresh(); }, function (e) { box.disabled = false; UI.toast(e.message); });
+      }
+    });
+    return UI.el('label.nhflag', [box, UI.el('span', { text: 'Relevant to Noahides' }),
+      UI.el('span.nhflag-sub', { text: 'Lists this chapter in ' + F.FLAGS_PATH })]);
+  }
+
   function paneEl(v, s) {
     const open = !!MT.device.get('paneOpen');
     const pos = panePos(), side = pos !== 'bottom';
@@ -1178,6 +1196,7 @@
       if (!onControl) setOpen(!el.classList.contains('open-pane'));
     });
     const body = UI.el('div.pane-body', v ? [
+      v.flag ? flagToggle(v) : null,
       UI.el('div.ann', ANN.map(function (l) { return boxes[l]; })),
       has.length ? null : UI.el('p.vp-none', { text: 'No commentary or review notes on this ' + kindName(key) + ' yet.' })
     ] : [
@@ -1641,9 +1660,12 @@
     shown.forEach(function (c) {
       const hasHeading = (c.he && !c.he.implicit) || (c.en && !c.en.implicit);
       if (hasHeading) {
-        grid.appendChild(headRow(ctx, s, c.key + ':h', 'chhead', 'h3',
-          c.he && !c.he.implicit ? F.headingText(c.he, 'he') : null,
-          c.en && !c.en.implicit ? F.headingText(c.en, 'en') : null));
+        const he = c.he && !c.he.implicit ? F.headingText(c.he, 'he') : null;
+        const en = c.en && !c.en.implicit ? F.headingText(c.en, 'en') : null;
+        /* How the chapter is named in the Noahide flags file: its heading,
+           which names the section too when the chapter is numbered. */
+        const name = (c.en || c.he).n != null ? (en || he) : ctx.title + ': ' + (en || he);
+        grid.appendChild(headRow(ctx, s, c.key + ':h', 'chhead', 'h3', he, en, { chapter: c.key, name: name }));
       }
       const chN = (c.en || c.he).n;
       if (chN != null) UI.append(grid, generalRow(coChapter(sec.co, chN)));
@@ -1750,9 +1772,19 @@
 
   /* A heading, the section's title or a chapter's: chosen like a law, to
      open its notes in the pane (whether the chapter concerns Noahides,
-     what it is about). Not read aloud. Beside it, how many notes it has. */
-  function headRow(ctx, s, key, cls, tag, he, en) {
-    const v = { key: key, id: rowId(key), ctx: ctx, head: true };
+     what it is about). Not read aloud. Beside it, how many notes it has.
+     A chapter's (`flag`: { chapter, name }) can be flagged as relevant to
+     Noahides, in the pane, and says so when it is. */
+  function headRow(ctx, s, key, cls, tag, he, en, flag) {
+    const v = { key: key, id: rowId(key), ctx: ctx, head: true, flag: flag || null };
+    const nh = flag && flagMap.has(E.flagKey(ctx.id, flag.chapter));
+    const badge = function (lang) {
+      /* In the Hebrew's own direction, so its margin falls between it and
+         the heading. */
+      return nh ? UI.el('span.nhbadge', {
+        text: lang === 'he' ? 'ב״נ' : 'BN', title: 'Relevant to Noahides', 'aria-label': 'Relevant to Noahides'
+      }) : null;
+    };
     s.order.push(v);
     s.byKey.set(key, v);
     const st = noteState(ctx, key);
@@ -1767,8 +1799,8 @@
       }) : [MT.icons.note()]);
     };
     const el = row(cls + '.law.head', [UI.el('div.text', [
-      cell('he', he ? UI.el(tag, [he, mark()]) : null),
-      cell('en', en ? UI.el(tag, [en, mark()]) : null)
+      cell('he', he ? UI.el(tag, [he, badge('he'), mark()]) : null),
+      cell('en', en ? UI.el(tag, [en, badge('en'), mark()]) : null)
     ])], v.id);
     el.setAttribute('data-key', key);
     el.classList.toggle('marked', MT.bookmarks.has(ctx.id, key));
@@ -1792,8 +1824,13 @@
         UI.fill(host, UI.message('Loading…', null, 'loading'));
         host.setAttribute('data-sec', id);
       }
-      return Promise.all([lib.index(), lib.section(id)]).then(function (r) {
+      /* The Noahide flags are only marks and a checkbox: without them (an
+         unreadable file) the text shows all the same. */
+      const flags = lib.flags().catch(function () { return null; });
+      return Promise.all([lib.index(), lib.section(id), flags]).then(function (r) {
         if (mine !== seq) return;
+        flagMap = r[2] || new Map();
+        MT.contents.setFlags(flagMap);
         const meta = r[0].byId.get(id);
         if (!meta) { UI.fill(host, UI.message('There is no section ' + id + '.', UI.el('a.btn', { href: '#/books', text: 'Books' }))); return; }
         /* What the branch changed, when reading one and marking it. A

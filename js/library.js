@@ -48,12 +48,19 @@
     });
   }
 
+  /* Has a notes document any notes left (or a flags document any flags)? */
   function hasNotes(doc) {
+    if (doc && doc.items) return doc.items.length > 0;
     return !!doc && doc.chapters.some(function (ch) { return ch.notes && ch.notes.length; });
   }
 
+  /* The layers a "section" has: the flags file is a section of its own,
+     with its one layer. */
+  const layersOf = function (id) { return id === F.FLAGS_ID ? ['flags'] : LAYERS; };
+
   const lib = MT.lib = {
     LAYERS: LAYERS,
+    layersOf: layersOf,
 
     index: function () {
       if (!indexP) {
@@ -94,7 +101,7 @@
           });
         };
         const sp = MT.drafts.ready()
-          .then(function () { return Promise.all(LAYERS.map(load)); })
+          .then(function () { return Promise.all(layersOf(id).map(load)); })
           .then(function () { return sec; });
         sections.set(id, sp);
         sp.catch(function () { sections.delete(id); });
@@ -207,6 +214,20 @@
         ch.notes.forEach(function (n) { if (F.noteKey(n) === key) out.push(n); });
       });
       return out;
+    },
+
+    /* The chapters flagged as relevant to Noahides, drafts applied:
+       → Map "<section>/<chapter key>" → name. */
+    flags: function () {
+      return lib.section(F.FLAGS_ID).then(function (sec) { return MT.edit.flagEntries(sec.flags); });
+    },
+
+    /* Flag chapter `chapter` of section `id` (named `name` in the file),
+       or not. */
+    flag: function (id, chapter, name, on) {
+      return lib.edit(F.FLAGS_ID, 'flags', function (doc) {
+        return MT.edit.setFlag(doc, MT.edit.flagKey(id, chapter), name, on);
+      });
     },
 
     /* Whether a section reads as one page: it has no numbered chapters (the

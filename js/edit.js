@@ -236,6 +236,30 @@
     return { doc: d, text: checked(d, layer, p, hit.ch) };
   }
 
+  /* ------------------------------------------------------------- flags */
+
+  /* A flag's key, "<section>/<chapter key>". */
+  const flagKey = (id, chapter) => id + '/' + chapter;
+
+  /* → { doc, text } with chapter `key` flagged as relevant to Noahides
+     (named `name` in the file), or not. `doc` may be null: there is no
+     flags file yet. With no flags left, a file that never was is none
+     again: text null. */
+  function setFlag(doc, key, name, on) {
+    const d = doc ? clone(doc) : F.parseFlags('');
+    const at = d.items.findIndex(it => it.key === key);
+    if (on && at < 0) d.items.push({ key: key, name: name || '' });
+    else if (on) d.items[at].name = name || d.items[at].name;
+    else if (at >= 0) d.items.splice(at, 1);
+    d.items.sort((x, y) => F.flagOrder(x.key, y.key));
+    if (!doc && !d.items.length) return { doc: null, text: null };
+    return { doc: d, text: F.writeFlags(d) };
+  }
+
+  function flagEntries(doc) {
+    return new Map(doc ? doc.items.map(it => [it.key, it.name]) : []);
+  }
+
   /* ------------------------------------------------------------ changes */
 
   function unitEntries(doc) {
@@ -256,7 +280,14 @@
      plus one { kind: 'other' } if the files differ in anything else. */
   function changes(base, cur, layer) {
     const out = [];
-    if (F.textLang(layer)) {
+    if (layer === 'flags') {
+      const a = flagEntries(base), b = flagEntries(cur);
+      const keys = Array.from(new Set(Array.from(a.keys()).concat(Array.from(b.keys())))).sort(F.flagOrder);
+      for (const k of keys) {
+        const before = a.has(k) ? a.get(k) : null, after = b.has(k) ? b.get(k) : null;
+        if (before !== after) out.push({ kind: 'flag', key: k, label: k, before: before, after: after });
+      }
+    } else if (F.textLang(layer)) {
       const a = unitEntries(base), b = unitEntries(cur);
       for (const [key, after] of b) {
         const before = a.has(key) ? a.get(key) : null;
@@ -280,6 +311,7 @@
 
   /* `cur` with one change (from changes()) put back as it is in `base`. */
   function revert(base, cur, layer, change) {
+    if (change.kind === 'flag') return setFlag(cur, change.key, change.before, change.before !== null);
     if (change.kind === 'law') {
       const was = findUnit(base, change.key);
       return setLaw(cur, layer, change.key, was ? unitBody(was) : '');
@@ -341,6 +373,6 @@
   MT.edit = {
     paragraphs, lawBody, noteBody, findLaw, findNote, findUnit, unitBody, putUnit,
     setLaw, addNote, setNote, nextNoteLabel, notesChapter, placeNote,
-    changes, revert, diffWords,
+    changes, revert, diffWords, flagKey, setFlag, flagEntries,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

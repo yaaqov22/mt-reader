@@ -222,6 +222,14 @@
   /* ------------------------------------------------------ the comparison */
 
   function changeEl(id, layer, change) {
+    if (change.kind === 'flag') {
+      const k = change.key.split('/');
+      const on = change.after !== null;
+      return UI.el('div.chitem', [UI.el('div.chitem-head', [
+        UI.el('a.chitem-ref', { href: UI.href('read', [k[0], k[1], 'h']), text: (on ? change.after : change.before) || change.key }),
+        UI.el('span.chitem-what', { text: on ? 'flagged relevant to Noahides' : 'no longer flagged' })
+      ])]);
+    }
     const lang = layer === 'he' || layer === 'hen' ? 'he' : 'en';
     const k = (change.key || '').split(':');
     const href = k.length === 2 ? UI.href('read', [id, k[0], k[1]]) : UI.href('read', [id]);
@@ -242,9 +250,11 @@
   /* One section's changes, filled in when its texts have loaded. */
   function sectionEl(ix, id) {
     const meta = ix.byId.get(id);
+    const flags = id === MT.format.FLAGS_ID;
     const box = UI.el('section.chfile', [
       UI.el('div.chfile-head', [
-        UI.el('h3', [UI.el('a', { href: UI.href('read', [id]), text: (meta && meta.en) || id })]),
+        UI.el('h3', flags ? [UI.el('span', { text: 'Chapters relevant to Noahides' })]
+          : [UI.el('a', { href: UI.href('read', [id]), text: (meta && meta.en) || id })]),
         UI.el('code.chfile-path', { text: id })
       ]),
       UI.el('p.status', { text: 'Loading…' })
@@ -252,7 +262,7 @@
     const load = function () {
       return MT.lib.section(id).then(MT.review.section).then(function (changes) {
         box.removeChild(box.lastChild);
-        const layers = MT.lib.LAYERS.filter(function (l) { return changes[l]; });
+        const layers = MT.lib.layersOf(id).filter(function (l) { return changes[l]; });
         if (!layers.length) { box.appendChild(UI.note('Only the file layout changed.')); return; }
         layers.forEach(function (l) {
           box.appendChild(UI.el('h4.chlayer', { text: LAYER_NAME[l] }));
@@ -297,7 +307,9 @@
       if (mine !== seq) return;
       const ix = r[0], info = r[1];
       const ids = Array.from(info.sections.keys()).sort(function (a, b) {
-        return ix.order.indexOf(ix.byId.get(a)) - ix.order.indexOf(ix.byId.get(b));
+        /* In reading order; the flags file (no section of the index) last. */
+        const at = function (id) { const i = ix.order.indexOf(ix.byId.get(id)); return i < 0 ? ix.order.length : i; };
+        return at(a) - at(b);
       });
       const other = Object.keys(info.files).length ? null : 'It changes no texts.';
       const parts = [

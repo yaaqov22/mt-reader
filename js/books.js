@@ -13,15 +13,29 @@
 
   const UI = MT.ui;
   let seq = 0;
+  /* The chapters flagged as relevant to Noahides ("<section>/<chapter>"),
+     marked in every grid of chapters; kept up to date by whoever has just
+     read them (this screen, the reader). */
+  let flagged = new Map();
 
+  /* A section on the home screen: its id and names, opening on a grid of
+     its chapters (as Tanakh Reader's books do); a section of one page, or
+     one chapter, is a link straight to it. */
   function sectionLink(s) {
     const first = s.chapters[0];
     const chapters = s.chapters.filter(function (c) { return c.n != null; }).length;
-    return UI.el('a.sec', { href: UI.href('read', first ? [s.id, first.key] : [s.id]), 'data-sec': s.id }, [
+    const parts = [
       UI.el('span.sec-id', { text: s.id }),
       UI.el('span.sec-en', { text: s.en || s.id }),
       UI.el('span.sec-he', { lang: 'he', dir: 'rtl', text: s.he || '' }),
       UI.el('span.sec-meta', { text: chapters ? chapters + (chapters === 1 ? ' chapter' : ' chapters') : '' })
+    ];
+    if (s.chapters.length < 2 || MT.lib.onePage(s.chapters)) {
+      return UI.el('a.sec', { href: UI.href('read', first ? [s.id, first.key] : [s.id]), 'data-sec': s.id }, parts);
+    }
+    return UI.el('details.homesec', { 'data-sec': s.id }, [
+      UI.el('summary.sec', parts),
+      chapterGrid(s.id, s.en || s.id, s.chapters)
     ]);
   }
 
@@ -55,7 +69,7 @@
     MT.review.info().then(function (info) {
       if (!info || mine !== seq) return;
       info.sections.forEach(function (layers, id) {
-        const a = host.querySelector('a.sec[data-sec="' + id + '"] .sec-meta');
+        const a = host.querySelector('[data-sec="' + id + '"] .sec-meta');
         if (a) a.appendChild(UI.el('span.tag.up', { text: 'changed', title: 'Changed on this branch compared with ' + info.base }));
       });
     }, function () {});
@@ -79,9 +93,11 @@
     return UI.el('div.chgrid', chapters.map(function (c) {
       const l = chapterLabel(c);
       const up = marked && marked.has(c.key);
-      return UI.el('a.chnum' + (l.num ? '' : '.chname') + (up ? '.up' : ''), {
+      const nh = flagged.has(id + '/' + c.key);
+      return UI.el('a.chnum' + (l.num ? '' : '.chname') + (up ? '.up' : '') + (nh ? '.nh' : ''), {
         href: UI.href('read', [id, c.key]), text: l.text,
-        title: title + (l.num ? ', chapter ' + l.text : ': ' + l.text) + (up ? ' (changed on this branch)' : ''),
+        title: title + (l.num ? ', chapter ' + l.text : ': ' + l.text) + (nh ? ' · relevant to Noahides' : '') +
+          (up ? ' (changed on this branch)' : ''),
         'aria-current': c.key === cur ? 'page' : null
       });
     }));
@@ -120,14 +136,20 @@
         ]);
       });
     },
-    chapterGrid: chapterGrid
+    chapterGrid: chapterGrid,
+    setFlags: function (m) { flagged = m || new Map(); }
   };
 
   UI.route('books', {
     refresh: function (host, args) {
       const mine = ++seq;
       if (!host.firstChild) UI.fill(host, UI.message('Loading…', null, 'loading'));
-      return MT.lib.index().then(function (ix) {
+      /* The flags are only marks: without them (an unreadable file), the
+         contents show all the same. */
+      const flags = MT.lib.flags().catch(function () { return null; });
+      return Promise.all([MT.lib.index(), flags]).then(function (r) {
+        const ix = r[0];
+        if (r[1]) flagged = r[1];
         if (mine === seq) render(host, ix, args[0]);
       }, function (e) {
         if (mine !== seq) return;

@@ -225,6 +225,41 @@ test('notes on headings: the title at the top, a chapter heading before its laws
   assert.equal(E.nextNoteLabel(back, '2:h'), '2.h.2');
 });
 
+test('Noahide flags: one file, in reading order, set and unset, with changes and undo', () => {
+  assert.deepEqual(F.classify('Commentary/noahide.md'), { id: 'noahide', layer: 'flags' });
+  assert.deepEqual(F.paths('noahide'), { flags: 'Commentary/noahide.md' });
+  let r = E.setFlag(null, 'e-5/8', 'Laws of Kings and Wars, Chapter 8', true);
+  r = E.setFlag(r.doc, '3-5/x1', 'Laws of Chametz and Matzah: The Text of the Haggadah', true);
+  r = E.setFlag(r.doc, '3-5/2', 'Laws of Chametz and Matzah, Chapter 2', true);
+  r = E.setFlag(r.doc, 'a-1/10', 'Laws of Corpse Impurity, Chapter 10', true);
+  r = E.setFlag(r.doc, '1-1/1', 'Laws of the Foundations of the Torah, Chapter 1', true);
+  const text = [
+    '# Chapters relevant to Noahides',
+    '- 1-1/1: Laws of the Foundations of the Torah, Chapter 1\n' +
+    '- 3-5/2: Laws of Chametz and Matzah, Chapter 2\n' +
+    '- 3-5/x1: Laws of Chametz and Matzah: The Text of the Haggadah\n' +
+    '- a-1/10: Laws of Corpse Impurity, Chapter 10\n' +
+    '- e-5/8: Laws of Kings and Wars, Chapter 8',
+  ].join('\n\n') + '\n';
+  assert.equal(r.text, text);
+  const doc = F.parse(text, 'flags');
+  assert.equal(F.write(doc, 'flags'), text);
+  assert.deepEqual(doc.warnings, []);
+  // Out of order or listed twice, it reads, and is written back in order.
+  const messy = F.parse('# Chapters relevant to Noahides\n\n- e-5/8: K\n- 1-1/1: F\n- e-5/8: K\n', 'flags');
+  assert.deepEqual(messy.items.map(i => i.key), ['1-1/1', 'e-5/8']);
+  assert.equal(messy.warnings.length, 2);
+  // Unflagging; and nothing flagged, with no file before, is no file.
+  const off = E.setFlag(doc, '3-5/x1', null, false);
+  assert.equal(off.text.includes('3-5/x1'), false);
+  assert.deepEqual(E.setFlag(null, '1-1/1', 'x', false), { doc: null, text: null });
+  const ch = E.changes(doc, off.doc, 'flags');
+  assert.deepEqual(ch, [{ kind: 'flag', key: '3-5/x1', label: '3-5/x1',
+    before: 'Laws of Chametz and Matzah: The Text of the Haggadah', after: null }]);
+  assert.equal(E.revert(doc, off.doc, 'flags', ch[0]).text, text);
+  assert.deepEqual(E.changes(null, doc, 'flags').map(c => c.key), ['1-1/1', '3-5/2', '3-5/x1', 'a-1/10', 'e-5/8']);
+});
+
 /* ---------- changes and revert ---------- */
 
 test('changes lists edited laws and added/edited/deleted notes', () => {

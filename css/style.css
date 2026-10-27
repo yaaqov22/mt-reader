@@ -485,6 +485,10 @@ a.crumb:hover { color: var(--accent); }
   text-decoration: none;
 }
 .sec:hover { background: var(--panel-lit); }
+/* A section that opens on its chapters. */
+summary.sec { cursor: pointer; list-style: none; }
+summary.sec::-webkit-details-marker { display: none; }
+.homesec[open] > summary.sec .sec-en { color: var(--accent); }
 .sec-id { color: var(--faint); font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
 .sec-en { font-family: var(--font); }
 .sec-he { font-family: var(--font-he); font-size: 17px; color: var(--dim); }
@@ -762,6 +766,26 @@ a.crumb:hover { color: var(--accent); }
 }
 .hnote > span { display: inline-flex; align-items: center; gap: 3px; }
 .hnote svg { width: 13px; height: 13px; }
+/* A chapter flagged as relevant to Noahides: a badge on its heading, a
+   dot on its number in the grids of chapters, a checkbox in the pane. */
+.nhbadge {
+  display: inline-block; vertical-align: middle;
+  margin-inline-start: 10px; padding: 1px 8px;
+  border-radius: 999px; background: var(--accent); color: var(--bg);
+  font-family: var(--font-ui); font-size: 11.5px; font-weight: 700; letter-spacing: .02em;
+}
+.chnum.nh { position: relative; }
+.chnum.nh::after {
+  content: ""; position: absolute; top: 4px; right: 4px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+.chnum.nh[aria-current="page"]::after { background: var(--bg); }
+.nhflag {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px;
+  margin: 10px 0 4px; font-family: var(--font-ui); font-size: 14px; cursor: pointer;
+}
+.nhflag input { margin: 0; accent-color: var(--accent); }
+.nhflag-sub { flex-basis: 100%; padding-inline-start: 22px; color: var(--faint); font-size: 12px; }
 /* Between the last law and the closing that ends a book. */
 .grid .row.closing { padding: 0; margin-top: 10px; border-bottom: 3px double var(--line); }
 .row.general { padding-top: 6px; padding-bottom: 6px; }

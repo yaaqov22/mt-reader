@@ -179,6 +179,12 @@
 
   function announce(who, arrived) {
     const a = arrived[0];
+    if (a.layer === 'flags') {
+      const more = arrived.length - 1;
+      UI.toast((who || 'Someone') + (a.what === 'deleted' ? ' unflagged ' : ' flagged ') + a.key +
+        (a.what === 'deleted' ? '' : ' as relevant to Noahides') + (more ? ', and ' + more + ' more' : '') + '.', 4500);
+      return;
+    }
     MT.lib.index().then(function (ix) { return ix.byId.get(a.sec); }, function () { return null; }).then(function (meta) {
       const where = F.unitName(a.key) + ' in ' + ((meta && meta.en) || a.sec);
       const thing = a.kind === 'law' ? 'the ' + TEXT[a.layer] + ' of ' + where
@@ -401,7 +407,7 @@
         const files = info ? Object.keys(info.files) : [];
         const body = files.map(function (p) {
           const f = F.classify(p);
-          return MT.submit.LAYER_NAME[f.layer] + ' ' + f.id;
+          return MT.submit.LAYER_NAME[f.layer] + (f.layer === 'flags' ? '' : ' ' + f.id);
         }).sort().join('\n');
         return MT.submit.propose({ branch: d.branch, base: d.baseBranch, title: title, body: body }).then(function (pr) {
           MT.device.set({ lastSubmit: {
