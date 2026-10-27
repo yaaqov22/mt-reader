@@ -395,6 +395,69 @@
     });
   }
 
+  /* ---------- the Noahide flags ---------- */
+
+  // One file for the whole work, Commentary/noahide.md, listing the chapters
+  // relevant to Noahides, a line each, in reading order:
+  //
+  //   # Chapters relevant to Noahides
+  //
+  //   - e-5/8: Laws of Kings and Wars, Chapter 8
+  //
+  // A flag's key is "<section>/<chapter key>"; the name after the colon is
+  // for people reading the file, and is kept as written. The app treats the
+  // file as a section of its own, id FLAGS_ID, with the one layer "flags":
+  //   { front[], title, intro[], items[{ key, name }], chapters[], end[] }
+  // (chapters and end stay empty; they let code written for the other
+  // documents pass over it).
+  const FLAGS_ID = 'noahide';
+  const FLAGS_PATH = 'Commentary/noahide.md';
+  const FLAGS_TITLE = 'Chapters relevant to Noahides';
+  const FLAG_LINE = /^- ([0-9a-e]-[0-9a])\/([^\s:]+)(?::[ \t]*(.*))?$/;
+  const ORDER = '0123456789abcdef';
+
+  // Reading order of two flag keys: by book, section, then chapter (numbered
+  // chapters by number, before unnumbered ones).
+  function flagOrder(a, b) {
+    const [sa, ca] = a.split('/'), [sb, cb] = b.split('/');
+    if (sa !== sb) return (ORDER.indexOf(sa[0]) - ORDER.indexOf(sb[0])) || (ORDER.indexOf(sa[2]) - ORDER.indexOf(sb[2]));
+    const na = /^\d+$/.test(ca), nb = /^\d+$/.test(cb);
+    if (na && nb) return +ca - +cb;
+    if (na !== nb) return na ? -1 : 1;
+    return ca < cb ? -1 : ca > cb ? 1 : 0;
+  }
+
+  function parseFlags(src) {
+    const doc = { front: [], title: null, intro: [], items: [], chapters: [], end: [], warnings: [] };
+    const seen = new Set();
+    for (const b of splitBlocks(src)) {
+      if (doc.title == null && !doc.items.length && !doc.intro.length && /^# /.test(b) && !b.includes('\n')) {
+        doc.title = b.slice(2).trim();
+        continue;
+      }
+      const lines = b.split('\n');
+      if (!lines.every(l => FLAG_LINE.test(l))) { doc.intro.push(b); continue; }
+      for (const l of lines) {
+        const m = FLAG_LINE.exec(l);
+        const key = m[1] + '/' + m[2];
+        if (seen.has(key)) { doc.warnings.push(`flag ${key} listed twice`); continue; }
+        seen.add(key);
+        doc.items.push({ key, name: (m[3] || '').trim() });
+      }
+    }
+    const sorted = doc.items.slice().sort((x, y) => flagOrder(x.key, y.key));
+    if (sorted.some((x, i) => x !== doc.items[i])) doc.warnings.push('flags put in reading order');
+    doc.items = sorted;
+    return doc;
+  }
+
+  function writeFlags(doc) {
+    const out = ['# ' + (doc.title || FLAGS_TITLE), ...doc.intro];
+    const items = doc.items.slice().sort((x, y) => flagOrder(x.key, y.key));
+    if (items.length) out.push(items.map(it => `- ${it.key}` + (it.name ? ': ' + it.name : '')).join('\n'));
+    return joinBlocks(out);
+  }
+
   /* ---------- sections, paths, keys ---------- */
 
   // Section ids are "{book}-{section}", book 0-9/a-e, section 0-9/a. "1-0" is
@@ -402,6 +465,7 @@
   const SECTION_RE = /^[0-9a-e]-[0-9a]$/;
 
   function paths(id) {
+    if (id === FLAGS_ID) return { flags: FLAGS_PATH };
     return {
       he: `Hebrew/${id}-he.md`,
       hen: `Hebrew/${id}-hen.md`,      // the same Hebrew with niqqud
@@ -423,17 +487,21 @@
     if (m) return { id: m[1], layer: 'co' };
     m = path.match(/^Notes\/([0-9a-e]-[0-9a])-notes\.md$/);
     if (m) return { id: m[1], layer: 'notes' };
+    if (path === FLAGS_PATH) return { id: FLAGS_ID, layer: 'flags' };
     return null;
   }
 
-  // Layers: he, hen (Hebrew with niqqud — parsed as Hebrew), en, co, notes.
+  // Layers: he, hen (Hebrew with niqqud — parsed as Hebrew), en, co, notes;
+  // and flags, the one Noahide flags file.
   const textLang = layer => (layer === 'hen' ? 'he' : layer === 'he' || layer === 'en' ? layer : null);
 
   function parse(src, layer) {
+    if (layer === 'flags') return parseFlags(src);
     return textLang(layer) ? parseText(src, textLang(layer)) : parseNotes(src);
   }
 
   function write(doc, layer) {
+    if (layer === 'flags') return writeFlags(doc);
     return textLang(layer) ? writeText(doc, textLang(layer)) : writeNotes(doc);
   }
 
@@ -518,5 +586,6 @@
     parseText, writeText, parseNotes, writeNotes, parseNoteLabel,
     parse, write, paths, classify, lawMap, noteKey, SECTION_RE,
     units, paraKey, paraNumber, unitName, isHeadKey, headKeys,
+    FLAGS_ID, FLAGS_PATH, parseFlags, writeFlags, flagOrder,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

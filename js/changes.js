@@ -63,13 +63,36 @@
 
   /* Where a change is in the reader. */
   function hrefFor(id, change) {
+    if (change.kind === 'flag') return flagHref(change.key);
     const k = (change.key || '').split(':');
     return k.length === 2 ? UI.href('read', [id, k[0], k[1]]) : UI.href('read', [id]);
+  }
+
+  /* A flagged chapter's heading in the reader. */
+  function flagHref(key) {
+    const k = key.split('/');
+    return UI.href('read', [k[0], k[1], 'h']);
+  }
+
+  /* A flag changed: which chapter, flagged or not, and an undo. */
+  function flagEl(sec, change, rerender) {
+    const on = change.after !== null;
+    return UI.el('div.chitem', [
+      UI.el('div.chitem-head', [
+        UI.el('a.chitem-ref', { href: flagHref(change.key), text: (on ? change.after : change.before) || change.key }),
+        UI.el('span.chitem-what', { text: on ? 'flagged relevant to Noahides' : 'no longer flagged' }),
+        UI.el('button.linkbtn', {
+          type: 'button', text: 'undo',
+          onclick: function () { lib.revert(sec.id, 'flags', change).then(rerender, function (e) { UI.toast(e.message); }); }
+        })
+      ])
+    ]);
   }
 
   /* ------------------------------------------------------------- drafts */
 
   function changeEl(sec, layer, change, rerender) {
+    if (change.kind === 'flag') return flagEl(sec, change, rerender);
     const title = change.kind === 'law' ? MT.cap(MT.format.unitName(change.key))
       : change.kind === 'note' ? 'Note [^' + change.label + '] on ' + (MT.format.isHeadKey(change.key) ? MT.format.unitName(change.key) : change.key) : 'Other changes to the file';
     const what = change.before === null ? 'added' : change.after === null ? 'deleted' : 'edited';
@@ -426,12 +449,14 @@
       ids.forEach(function (id) { const m = ix.byId.get(id); if (m) titles[id] = m.en; });
       const total = drafts.length;
       const sections = r[1].map(function (sec) {
-        const meta = ix.byId.get(sec.id) || { en: sec.id, he: '' };
-        const layers = lib.LAYERS.filter(function (l) { return sec.drafts[l]; });
+        const flags = sec.id === F.FLAGS_ID;
+        const meta = ix.byId.get(sec.id) || { en: flags ? 'Chapters relevant to Noahides' : sec.id, he: '' };
+        const layers = lib.layersOf(sec.id).filter(function (l) { return sec.drafts[l]; });
         if (!layers.length) return null;
+        const name = (sec.en && sec.en.title) || meta.en || sec.id;
         return UI.el('section.card.chsec', [
           UI.el('div.chsec-head', [
-            UI.el('h2', [UI.el('a', { href: UI.href('read', [sec.id]), text: (sec.en && sec.en.title) || meta.en || sec.id })]),
+            UI.el('h2', flags ? [UI.el('span', { text: name })] : [UI.el('a', { href: UI.href('read', [sec.id]), text: name })]),
             UI.el('span.chsec-id', { text: sec.id })
           ]),
           layers.map(function (l) { return fileEl(sec, l, rerender); })

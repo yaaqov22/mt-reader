@@ -104,6 +104,24 @@ test('a change outside the laws, with their file moved on, makes the file one co
   assert.equal(merge(EN, ours, theirs, 'en', { file: 'theirs' }).text, theirs);
 });
 
+test('Noahide flags merge chapter by chapter, and the message names them', () => {
+  const T = '# Chapters relevant to Noahides\n\n';
+  const base = T + '- e-5/8: Kings 8\n';
+  const ours = T + '- 1-1/1: Foundations 1\n- e-5/8: Kings 8\n';
+  const theirs = T + '- e-5/8: Kings 8\n- e-5/9: Kings 9\n';
+  const m = merge(base, ours, theirs, 'flags');
+  assert.deepEqual(m.conflicts, []);
+  assert.equal(m.text, T + '- 1-1/1: Foundations 1\n- e-5/8: Kings 8\n- e-5/9: Kings 9\n');
+  // Unflagged here, flagged by them: both land.
+  assert.equal(merge(base, '# Chapters relevant to Noahides\n', theirs, 'flags').text, T + '- e-5/9: Kings 9\n');
+  // A file neither side had: ours, whole.
+  assert.equal(merge(null, ours, null, 'flags').text, ours);
+  // Both started the file: the two sets join.
+  assert.equal(merge(null, T + '- 1-1/1: F 1\n', T + '- 1-1/2: F 2\n', 'flags').text, T + '- 1-1/1: F 1\n- 1-1/2: F 2\n');
+  const msg = MT.submit.message([{ id: 'noahide', layer: 'flags', path: F.FLAGS_PATH, base: base, text: ours }], {});
+  assert.equal(msg, 'Flag chapters relevant to Noahides\n\nNoahide flags: chapter 1-1/1\n');
+});
+
 test('a file deleted on their side is a file conflict', () => {
   const ours = setLaw(EN, '1:1', 'Mine.');
   assert.equal(merge(EN, ours, null, 'en').conflicts[0].why, 'deleted');

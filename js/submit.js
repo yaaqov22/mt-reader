@@ -36,7 +36,7 @@
   'use strict';
   const MT = root.MT = root.MT || {};
 
-  const LAYER_NAME = { he: 'Hebrew', hen: 'Hebrew (pointed)', en: 'English', co: 'Commentary', notes: 'Review notes' };
+  const LAYER_NAME = { he: 'Hebrew', hen: 'Hebrew (pointed)', en: 'English', co: 'Commentary', notes: 'Review notes', flags: 'Noahide flags' };
   const RETRIES = 2;
   const SHARE_RETRIES = 4;   // three people finishing edits at once
 
@@ -62,13 +62,15 @@
   function fileLine(d) {
     const changes = MT.edit.changes(parse(d.base, d.layer), parse(d.text, d.layer), d.layer);
     const laws = changes.filter(c => c.kind === 'law').map(c => c.key);
+    const flagged = changes.filter(c => c.kind === 'flag').map(c => c.key + (c.after === null ? ' (unflagged)' : ''));
     const notes = changes.filter(c => c.kind === 'note').map(c =>
       c.label + (c.before === null ? ' (new)' : c.after === null ? ' (deleted)' : ''));
     const parts = [];
     if (laws.length) parts.push((laws.length === 1 ? 'law ' : 'laws ') + laws.join(', '));
     if (notes.length) parts.push((notes.length === 1 ? 'note ' : 'notes ') + notes.join(', '));
+    if (flagged.length) parts.push((flagged.length === 1 ? 'chapter ' : 'chapters ') + flagged.join(', '));
     if (!parts.length) parts.push('other changes');
-    return LAYER_NAME[d.layer] + ' ' + d.id + ': ' + parts.join('; ');
+    return LAYER_NAME[d.layer] + (d.layer === 'flags' ? '' : ' ' + d.id) + ': ' + parts.join('; ');
   }
 
   /* A commit message to start from: a title, a blank line, a line per file.
@@ -79,8 +81,9 @@
     drafts = drafts.slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : order.indexOf(a.layer) - order.indexOf(b.layer)));
     const ids = [];
     drafts.forEach(d => { if (ids.indexOf(d.id) < 0) ids.push(d.id); });
-    const title = ids.length === 1
-      ? 'Edit ' + (titles[ids[0]] ? titles[ids[0]] + ' (' + ids[0] + ')' : ids[0])
+    const title = ids.length === 1 && ids[0] === MT.format.FLAGS_ID ? 'Flag chapters relevant to Noahides'
+      : ids.length === 1
+      ? 'Edit ' +(titles[ids[0]] ? titles[ids[0]] + ' (' + ids[0] + ')' : ids[0])
       : 'Edit ' + ids.slice(0, 4).join(', ') + (ids.length > 4 ? ' and ' + (ids.length - 4) + ' more' : '');
     return title + '\n\n' + drafts.map(fileLine).join('\n') + '\n';
   }
