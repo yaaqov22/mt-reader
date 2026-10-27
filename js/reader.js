@@ -7,7 +7,10 @@
    #/read/1-1/3/5/q …and with the search q highlighted in it (a trailing /w
                     means whole words), which is where search results lead
    #/read/1-0/i/3   paragraph 3 of a section's opening
-   #/read/0-4/x2/i4 paragraph 4 of an unnumbered chapter
+   #/read/0-5/x2/i4 paragraph 4 of an unnumbered chapter
+   #/read/1-1/3/h   chapter 3's heading, chosen (its notes in the pane);
+                    #/read/1-1/i/h the section's title
+   #/read/d-5/end/1 paragraph 1 of a section's closing
 
    THE ROWS ARE THE UNITS of format.js: every law, and every paragraph outside
    the laws (a book's opening, a section's list of commandments, the front
@@ -736,25 +739,33 @@
       : text.map(function (k) { return k === 'en' ? 'minmax(0, 1.15fr)' : 'minmax(0, 1fr)'; }).join(' '));
   }
 
-  /* Previous/next chapter, running on into the neighbouring section. */
+  /* A section's address: its first chapter, or (`last`) its last — unless
+     it reads as one page, which is always at its first. */
+  function sectionHref(s, last) {
+    const c = last && !lib.onePage(s.chapters) ? s.chapters[s.chapters.length - 1] : s.chapters[0];
+    return UI.href('read', c ? [s.id, c.key] : [s.id]);
+  }
+
+  /* Previous/next chapter, running on into the neighbouring section. A
+     section that reads as one page is one step. */
   function neighbours(ix, sec, chapters, i) {
     const order = ix.order;
     const at = order.findIndex(function (s) { return s.id === sec.id; });
-    const hrefFor = function (s, which) {
-      if (!s) return null;
-      const c = which === 'first' ? s.chapters[0] : s.chapters[s.chapters.length - 1];
-      return UI.href('read', c ? [s.id, c.key] : [s.id]);
-    };
+    const whole = lib.onePage(chapters);
+    const hrefFor = function (s, last) { return s ? sectionHref(s, last) : null; };
     return {
-      prev: i > 0 ? UI.href('read', [sec.id, chapters[i - 1].key]) : hrefFor(order[at - 1], 'last'),
-      next: i < chapters.length - 1 ? UI.href('read', [sec.id, chapters[i + 1].key]) : hrefFor(order[at + 1], 'first')
+      prev: !whole && i > 0 ? UI.href('read', [sec.id, chapters[i - 1].key]) : hrefFor(order[at - 1], true),
+      next: !whole && i < chapters.length - 1 ? UI.href('read', [sec.id, chapters[i + 1].key]) : hrefFor(order[at + 1], false)
     };
   }
 
   /* The arrows, and in the header between them the section's name, which
      opens the contents, and the chapter's, which opens the section's
      chapters (`marked`: the keys of those with changes on the branch,
-     flagged there). */
+     flagged there). A section that reads as one page has no chapters to
+     choose. In the Introduction, whose sections are all one page, it is
+     the book's name and then the section's, which opens the book's
+     sections. */
   function pager(ix, meta, title, chapters, i, withNav, marked) {
     const n = neighbours(ix, meta, chapters, i);
     const link = function (href, icon, label) {
@@ -765,16 +776,43 @@
     let middle = null;
     if (withNav) {
       const cur = chapters[i];
-      const name = cur ? lib.chapterName(cur) : '';
-      middle = [
-        navPop('Books and sections', title, 'contents', function () { return contentsNav(ix, meta, cur && cur.key); }),
-        chapters.length > 1
-          ? navPop('Chapters of ' + title, name, 'chapters', function () { return chapterNav(meta, title, chapters, i, marked); })
-          : name ? UI.el('span.navtext.solo', { text: name }) : null
-      ];
+      const contents = function () { return contentsNav(ix, meta, cur && cur.key); };
+      if (isIntro(meta)) {
+        const book = meta.book.en || 'Introduction';
+        const name = meta.en || title;
+        middle = [
+          navPop('Books and sections', book, 'contents', contents),
+          navPop('Sections of the ' + book, name, 'chapters', function () { return sectionNav(meta); })
+        ];
+      } else {
+        const name = cur && !lib.onePage(chapters) ? lib.chapterName(cur) : '';
+        middle = [
+          navPop('Books and sections', title, 'contents', contents),
+          chapters.length > 1 && name
+            ? navPop('Chapters of ' + title, name, 'chapters', function () { return chapterNav(meta, title, chapters, i, marked); })
+            : name ? UI.el('span.navtext.solo', { text: name }) : null
+        ];
+      }
     }
     return UI.el('div.pager', [link(n.prev, MT.icons.prev, 'Previous chapter'), middle,
       link(n.next, MT.icons.next, 'Next chapter')]);
+  }
+
+  /* The Introduction (book 0): the title page, the introduction, the lists
+     of commandments, the structure of the books. */
+  function isIntro(meta) {
+    return meta.book && String(meta.book.id) === '0';
+  }
+
+  /* The sections of the book being read, by name, as the chapter grid
+     lists unnumbered chapters. */
+  function sectionNav(meta) {
+    return UI.el('div.chgrid', meta.book.sections.map(function (s) {
+      return UI.el('a.chnum.chname', {
+        href: sectionHref(s, false), text: s.en || s.id, title: s.en || s.id,
+        'aria-current': s.id === meta.id ? 'page' : null
+      });
+    }));
   }
 
   /* ------------------------------------------------------------ navigator */
@@ -1060,9 +1098,14 @@
   }
 
   /* The unit's name, linking to it in its chapter. */
+  /* What a unit is, in a word. */
+  function kindName(key) {
+    return F.isHeadKey(key) ? 'heading' : F.paraNumber(key) == null ? 'law' : 'paragraph';
+  }
+
   function unitRef(v) {
     const name = F.unitName(v.key);
-    return UI.el('a.vp-ref', { href: unitHref(v.ctx, v.key), title: 'This ' + (F.paraNumber(v.key) == null ? 'law' : 'paragraph') + ' in its chapter' }, [
+    return UI.el('a.vp-ref', { href: unitHref(v.ctx, v.key), title: 'This ' + kindName(v.key) + ' in its chapter' }, [
       UI.el('strong', { text: name.charAt(0).toUpperCase() + name.slice(1) }),
       UI.el('span.vp-sec', { text: v.ctx.title })
     ]);
@@ -1136,10 +1179,9 @@
     });
     const body = UI.el('div.pane-body', v ? [
       UI.el('div.ann', ANN.map(function (l) { return boxes[l]; })),
-      has.length ? null : UI.el('p.vp-none', { text: 'No commentary or review notes on this ' +
-        (F.paraNumber(key) == null ? 'law' : 'paragraph') + ' yet.' })
+      has.length ? null : UI.el('p.vp-none', { text: 'No commentary or review notes on this ' + kindName(key) + ' yet.' })
     ] : [
-      UI.el('p.vp-hint', { text: 'Select a law to see its commentary and review notes here, to add to them, or to bookmark it.' })
+      UI.el('p.vp-hint', { text: 'Select a law or a heading to see its commentary and review notes here, to add to them, or to bookmark it.' })
     ]);
 
     const el = UI.el('aside.vpanel.pane.at-' + pos + (v ? '.row.law' : ''), v ? { 'data-key': key } : {},
@@ -1327,9 +1369,18 @@
     }).filter(function (it) { return it.text; });
   }
 
-  /* Read law `v` aloud, choosing it, and on until `until`. */
+  /* The first unit read aloud from position `at` of the page's units,
+     going `d` (1 or -1): headings are passed over. */
+  function spokenFrom(s, at, d) {
+    for (let i = at; i >= 0 && i < s.order.length; i += d) if (!s.order[i].head) return s.order[i];
+    return null;
+  }
+
+  /* Read law `v` aloud, choosing it, and on until `until`. A heading
+     starts the reading at the law after it. */
   function readFrom(v, until) {
     if (!MT.speech.supported) { UI.toast('This browser can’t read aloud.'); return Promise.resolve(); }
+    if (v && v.head && live) v = spokenFrom(live.units, live.units.order.indexOf(v), 1);
     if (!v || !live) return Promise.resolve();
     const r = reading = { v: v, until: until, page: live.page, moving: true, carry: false, warned: !!(reading && reading.warned) };
     const items = lawSpeech(v);
@@ -1355,7 +1406,7 @@
     if (!r) return;
     if (r.until === 'one' || r.until === 'law' || MT.editor.active() || !live) { stopReading(); return; }
     const s = live.units;
-    const to = s.order[s.order.indexOf(s.byKey.get(r.v.key)) + 1];
+    const to = spokenFrom(s, s.order.indexOf(s.byKey.get(r.v.key)) + 1, 1);
     if (to) { readFrom(to, r.until); return; }
     if (r.until === 'never' && nav && nav.next) {
       r.carry = true;
@@ -1387,7 +1438,7 @@
     if (!live) return;
     const s = live.units;
     const at = chosen ? s.order.indexOf(s.byKey.get(chosen.key)) : -1;
-    const to = at < 0 ? s.order[0] : s.order[at + d];
+    const to = at < 0 ? spokenFrom(s, 0, 1) : spokenFrom(s, at + d, d);
     if (to) readFrom(to, 'one');
   }
 
@@ -1529,16 +1580,23 @@
   function render(host, ix, meta, raw, args, up) {
     const sec = lib.view(raw, MT.device.get('niqqud'));
     const chapters = lib.chapters(sec);
-    let i = chapters.findIndex(function (c) { return c.key === args[1]; });
+    /* A section with no numbered chapters is one page, whichever of its
+       parts is asked for. The closing ("end") is on the last chapter. */
+    const whole = lib.onePage(chapters);
+    let i = args[1] === 'end' ? chapters.length - 1 : chapters.findIndex(function (c) { return c.key === args[1]; });
     if (i < 0) i = 0;
     const cur = chapters[i] || null;
     const key = cur ? cur.key : null;
+    const first = whole || i === 0;
+    const last = whole || i >= chapters.length - 1;
+    const shown = whole ? chapters : cur ? [cur] : [];
 
     const grid = UI.el('div.grid' + (sec.pointed ? '.pointed' : ''));
     const held = holdRow(host, raw.id);
 
     const ctx = {
-      id: raw.id, sec: sec, raw: raw, grid: grid, page: raw.id + '/' + key,
+      id: raw.id, sec: sec, raw: raw, grid: grid,
+      page: raw.id + '/' + (whole ? (chapters[0] ? chapters[0].key : null) : key),
       heLayer: sec.pointed ? 'hen' : 'he', changes: lib.changes(raw),
       branch: (up && up.changes) || {}, base: MT.device.get('baseBranch')
     };
@@ -1551,6 +1609,8 @@
     if (title !== bookName) crumbs.push({ text: title });
 
     const marked = MT.review.chapters(ctx.branch);
+    if (chapters.length && marked.has('i')) marked.add(chapters[0].key);
+    if (chapters.length && marked.has('end')) marked.add(chapters[chapters.length - 1].key);
     const head = UI.el('header.rhead', [
       UI.el('div.rbar', [pager(ix, meta, title, chapters, i, true, marked),
         UI.el('div.toggles', [displayMenu(raw), sayControls(), marksToggle() ? UI.el('div.segs', [marksToggle()]) : null])])
@@ -1561,33 +1621,51 @@
     /* The page's units, in order and by key, and the pane. */
     const s = ctx.units = { order: [], byKey: new Map(), panel: UI.el('aside.vpanel') };
 
-    /* The section's opening goes above its first chapter. */
-    if (i === 0) {
+    /* The section's opening goes above its first chapter: what comes before
+       its title (the opening verses), the title, and what follows it (a
+       book's list of its sections, a section's list of commandments). */
+    if (first) {
       UI.append(grid, generalRow(coGeneral(sec.co)));
-      pairUnits(ctx, function (u) { return !u.ch; }).forEach(function (r) { grid.appendChild(unitRow(ctx, r, s)); });
+      const opening = pairUnits(ctx, function (u) { return !u.ch && !u.end; });
+      const underTitle = function (r) {
+        return (r.en && sec.en && r.en.list === sec.en.intro) || (r.he && sec.he && r.he.list === sec.he.intro);
+      };
+      let titled = false;
+      opening.forEach(function (r) {
+        if (!titled && underTitle(r)) { UI.append(grid, titleRow(ctx, s)); titled = true; }
+        grid.appendChild(unitRow(ctx, r, s));
+      });
+      if (!titled) UI.append(grid, titleRow(ctx, s));
     }
 
-    if (cur) {
-      const hasHeading = (cur.he && !cur.he.implicit) || (cur.en && !cur.en.implicit);
+    shown.forEach(function (c) {
+      const hasHeading = (c.he && !c.he.implicit) || (c.en && !c.en.implicit);
       if (hasHeading) {
-        grid.appendChild(row('chhead', [UI.el('div.text', [
-          cell('he', cur.he && !cur.he.implicit ? UI.el('h3', { text: F.headingText(cur.he, 'he') }) : null),
-          cell('en', cur.en && !cur.en.implicit ? UI.el('h3', { text: F.headingText(cur.en, 'en') }) : null)
-        ])]));
+        grid.appendChild(headRow(ctx, s, c.key + ':h', 'chhead', 'h3',
+          c.he && !c.he.implicit ? F.headingText(c.he, 'he') : null,
+          c.en && !c.en.implicit ? F.headingText(c.en, 'en') : null));
       }
-      const chN = (cur.en || cur.he).n;
+      const chN = (c.en || c.he).n;
       if (chN != null) UI.append(grid, generalRow(coChapter(sec.co, chN)));
-      const mine = function (u) { return u.ch && (u.ch === cur.he || u.ch === cur.en); };
+      const mine = function (u) { return u.ch && (u.ch === c.he || u.ch === c.en); };
       pairUnits(ctx, function (u) { return mine(u) && !u.law; })
         .concat(pairUnits(ctx, function (u) { return mine(u) && u.law; }))
         .forEach(function (r) { grid.appendChild(unitRow(ctx, r, s)); });
+    });
+
+    /* The section's closing (the end of a book) goes below its last chapter,
+       set apart from the last law. */
+    if (last) {
+      const closing = pairUnits(ctx, function (u) { return u.end; });
+      if (closing.length) grid.appendChild(row('closing', [], null));
+      closing.forEach(function (r) { grid.appendChild(unitRow(ctx, r, s)); });
     }
     grid.appendChild(s.panel);
     applyCols(grid);
 
     /* The pane keeps its unit across repaints of the chapter; a unit linked
        to opens in it when it is arrived at, not at every repaint after. */
-    const target = args[2] ? s.order.find(function (v) { return v.id === 'law-' + (args[1] === 'i' ? 'i' : key) + '-' + args[2]; }) : null;
+    const target = args[2] ? s.order.find(function (v) { return v.id === 'law-' + (args[1] === 'i' || args[1] === 'end' ? args[1] : key) + '-' + args[2]; }) : null;
     const arrived = host.getAttribute('data-args') !== args.join('/');
     host.setAttribute('data-args', args.join('/'));
     if (target && arrived) chosen = { page: ctx.page, key: target.key };
@@ -1622,7 +1700,7 @@
       watchPane(s.panel);
     }
     fitHead(head);
-    document.title = ((sec.en && sec.en.title) || sec.id) + (cur && chapters.length > 1 ? ' · ' + lib.chapterName(cur) : '') + ' — MT Reader';
+    document.title = title + (cur && chapters.length > 1 && !whole ? ' · ' + lib.chapterName(cur) : '') + ' — MT Reader';
 
     /* A new chapter starts at its top; a repaint of the same one (a note
        saved, a setting changed) stays where it was. */
@@ -1660,6 +1738,42 @@
       return r ? { sec: live.id, key: r.getAttribute('data-key'), title: live.title } : null;
     }
   };
+
+  /* The section's title (a book's, at its opening), as a heading over its
+     text; nothing for a section without one (the title page). */
+  function titleRow(ctx, s) {
+    const sec = ctx.sec;
+    const he = sec.he && sec.he.title, en = sec.en && sec.en.title;
+    if (!he && !en) return null;
+    return headRow(ctx, s, 'i:h', 'sectitle', 'h2', he, en);
+  }
+
+  /* A heading, the section's title or a chapter's: chosen like a law, to
+     open its notes in the pane (whether the chapter concerns Noahides,
+     what it is about). Not read aloud. Beside it, how many notes it has. */
+  function headRow(ctx, s, key, cls, tag, he, en) {
+    const v = { key: key, id: rowId(key), ctx: ctx, head: true };
+    s.order.push(v);
+    s.byKey.set(key, v);
+    const st = noteState(ctx, key);
+    const mark = function () {
+      if (!st.cls) return null;
+      const counts = ANN.map(function (l) { return [l, noteCounts(ctx, l).get(key) || 0]; })
+        .filter(function (c) { return c[1]; });
+      return UI.el('span.hnote.' + st.cls.split(' ').join('.'), {
+        title: st.said.length ? st.said.join(', ') : 'Notes changed', 'aria-label': st.said.join(', ') || 'Notes changed'
+      }, counts.length ? counts.map(function (c) {
+        return UI.el('span', [MT.icons[ANN_ICON[c[0]]](), UI.el('span', { text: String(c[1]) })]);
+      }) : [MT.icons.note()]);
+    };
+    const el = row(cls + '.law.head', [UI.el('div.text', [
+      cell('he', he ? UI.el(tag, [he, mark()]) : null),
+      cell('en', en ? UI.el(tag, [en, mark()]) : null)
+    ])], v.id);
+    el.setAttribute('data-key', key);
+    el.classList.toggle('marked', MT.bookmarks.has(ctx.id, key));
+    return el;
+  }
 
   function row(cls, cells, id) {
     const r = UI.el('div.row' + (cls ? '.' + cls : ''), cells);

@@ -205,7 +205,8 @@ if (fs.existsSync(opt.root)) {
     for (const [f, doc] of docs) {
       const c = F.classify(f);
       if (c.layer !== 'co' && c.layer !== 'notes') continue;
-      const laws = new Set(F.units(docs.get(F.paths(c.id).en)).map(u => u.key));
+      const enDoc = docs.get(F.paths(c.id).en);
+      const laws = new Set(F.units(enDoc).map(u => u.key).concat(F.headKeys(enDoc)));
       for (const ch of doc.chapters) for (const n of ch.notes) {
         if (n.c == null) { bad.push(`${f}: [^${n.label}] not c.h.n`); continue; }
         if (ch.n != null && n.c !== String(ch.n)) bad.push(`${f}: [^${n.label}] filed under chapter ${ch.n}`);

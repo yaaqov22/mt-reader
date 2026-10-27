@@ -71,7 +71,7 @@
 
   function changeEl(sec, layer, change, rerender) {
     const title = change.kind === 'law' ? MT.cap(MT.format.unitName(change.key))
-      : change.kind === 'note' ? 'Note [^' + change.label + '] on ' + change.key : 'Other changes to the file';
+      : change.kind === 'note' ? 'Note [^' + change.label + '] on ' + (MT.format.isHeadKey(change.key) ? MT.format.unitName(change.key) : change.key) : 'Other changes to the file';
     const what = change.before === null ? 'added' : change.after === null ? 'deleted' : 'edited';
     const body = change.kind === 'other' ? UI.note('Changes outside the laws and notes.')
       : change.before === null || change.after === null
@@ -259,7 +259,7 @@
     });
     const use = function (v) { return function () { ta.value = v === null ? '' : v; }; };
     return UI.el('div.resolve-item', [
-      UI.el('h4', { text: k.kind === 'law' ? MT.cap(MT.format.unitName(k.key)) : 'Note [^' + k.label + '] on ' + k.key }),
+      UI.el('h4', { text: k.kind === 'law' ? MT.cap(MT.format.unitName(k.key)) : 'Note [^' + k.label + '] on ' + (MT.format.isHeadKey(k.key) ? MT.format.unitName(k.key) : k.key) }),
       UI.el('div.resolve-sides', [side('Changed on ' + where, k.base, k.theirs, lang), side('Your change', k.base, k.ours, lang)]),
       UI.field(k.kind === 'note' ? 'Result (empty deletes the note)' : 'Result', ta),
       err,

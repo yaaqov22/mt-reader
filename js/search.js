@@ -129,7 +129,7 @@
           add(out, meta, layer, u.key, UI.href('read', [meta.id, k[0], k[1]]), lawLabel(u.ch, u.law.n),
             [u.law.text].concat(u.law.extra));
         } else {
-          const where = u.ch ? (u.ch.implicit ? 'Chapter' : F.headingText(u.ch, layer === 'en' ? 'en' : 'he')) : 'Opening';
+          const where = u.ch ? (u.ch.implicit ? 'Chapter' : F.headingText(u.ch, layer === 'en' ? 'en' : 'he')) : u.end ? 'Closing' : 'Opening';
           add(out, meta, layer, u.key, UI.href('read', [meta.id, k[0], k[1]]), where + ' ¶' + u.n, [u.list[u.at]]);
         }
       });
@@ -138,7 +138,7 @@
     ['co', 'notes'].forEach(function (layer) {
       const doc = sec[layer];
       if (!doc) return;
-      add(out, meta, layer, 'intro', secHref, 'General remarks', [doc.title].concat(doc.front, doc.intro));
+      add(out, meta, layer, 'intro', secHref, 'General remarks', [doc.title].concat(doc.front, doc.intro, doc.end || []));
       doc.chapters.forEach(function (ch) {
         if (ch.intro.length) {
           add(out, meta, layer, (ch.n != null ? ch.n : ch.key) + ':intro',
@@ -149,7 +149,7 @@
           const key = F.noteKey(n);
           add(out, meta, layer, key || 'intro',
             key ? UI.href('read', [meta.id, String(n.c), String(n.h)]) : secHref,
-            key ? (F.paraNumber(key) != null ? F.unitName(key) : n.c + ':' + n.h + (n.h2 != null ? '–' + n.h2 : '')) : 'Note',
+            key ? (F.paraNumber(key) != null || F.isHeadKey(key) ? F.unitName(key) : n.c + ':' + n.h + (n.h2 != null ? '–' + n.h2 : '')) : 'Note',
             [n.text].concat(n.more));
         });
       });
