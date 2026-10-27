@@ -485,6 +485,10 @@ a.crumb:hover { color: var(--accent); }
   text-decoration: none;
 }
 .sec:hover { background: var(--panel-lit); }
+/* A section that opens on its chapters. */
+summary.sec { cursor: pointer; list-style: none; }
+summary.sec::-webkit-details-marker { display: none; }
+.homesec[open] > summary.sec .sec-en { color: var(--accent); }
 .sec-id { color: var(--faint); font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
 .sec-en { font-family: var(--font); }
 .sec-he { font-family: var(--font-he); font-size: 17px; color: var(--dim); }
