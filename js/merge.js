@@ -57,6 +57,7 @@
   function units(doc, layer) {
     const m = new Map();
     if (!doc) return m;
+    if (layer === 'flags') return E.flagEntries(doc);
     const text = !!F.textLang(layer);
     if (text) for (const u of F.units(doc)) m.set(u.key, E.unitBody(u));
     else for (const ch of doc.chapters) for (const n of ch.notes) m.set(n.label, E.noteBody(n));
@@ -68,6 +69,13 @@
      has to be made too. → false when the unit can't be put there (a law the
      file doesn't have). */
   function put(doc, layer, id, body, naming) {
+    if (layer === 'flags') {
+      const at = doc.items.findIndex(it => it.key === id);
+      if (body === null) { if (at >= 0) doc.items.splice(at, 1); }
+      else if (at >= 0) doc.items[at].name = body;
+      else { doc.items.push({ key: id, name: body }); doc.items.sort((x, y) => F.flagOrder(x.key, y.key)); }
+      return true;
+    }
     if (F.textLang(layer)) {
       const hit = E.findUnit(doc, id);
       if (!hit || body === null) return false;
@@ -126,7 +134,11 @@
 
     const O = F.parse(ours, layer);
     const T = F.parse(theirs, layer);
-    const B = base !== null ? F.parse(base, layer) : text ? emptyDoc() : bareNotes(O);
+    /* Flags are a set of chapters: each flagged or unflagged on its own, so
+       two people flagging different chapters never collide, and where both
+       touched the same one, ours stands. */
+    const flags = layer === 'flags';
+    const B = base !== null ? F.parse(base, layer) : flags ? F.parseFlags('') : text ? emptyDoc() : bareNotes(O);
     const b = units(B, layer), o = units(O, layer), t = units(T, layer);
     const at = (m, id) => (m.has(id) ? m.get(id) : null);
 
@@ -144,6 +156,7 @@
     for (const id of ops) {
       const bv = at(b, id), ov = at(o, id), tv = at(t, id);
       if (tv === ov) continue;                                  // they made the same change
+      if (flags) { put(R, layer, id, ov); continue; }
       if (!text && bv === null) { added.push(id); continue; }   // a new note: placed below
       const cid = (text ? 'law:' : 'note:') + id;
       if (tv === bv) {                                          // only we changed it

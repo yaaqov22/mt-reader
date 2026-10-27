@@ -218,6 +218,18 @@ if (fs.existsSync(opt.root)) {
     assert.deepEqual(bad, []);
   });
 
+  test('every Noahide flag names a chapter with a heading', () => {
+    const flags = docs.get(F.FLAGS_PATH);
+    if (!flags) return;
+    const bad = [];
+    for (const it of flags.items) {
+      const [id, c] = it.key.split('/');
+      const en = docs.get(F.paths(id).en);
+      if (!en || !en.chapters.some(ch => ch.key === c && !ch.implicit)) bad.push(`${it.key}: no such chapter`);
+    }
+    assert.deepEqual(bad, []);
+  });
+
   test('index.json matches the files', () => {
     const index = JSON.parse(read('index.json'));
     const bad = [];
