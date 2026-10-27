@@ -1779,7 +1779,7 @@
     const v = { key: key, id: rowId(key), ctx: ctx, head: true, flag: flag || null };
     const nh = flag && flagMap.has(E.flagKey(ctx.id, flag.chapter));
     const badge = function (lang) {
-      return nh ? UI.el('span.nhbadge', { text: lang === 'he' ? 'בני נח' : 'Noahides', title: 'Relevant to Noahides' }) : null;
+      return nh ? UI.el('span.nhbadge', { text: 'BN', title: 'Relevant to Noahides', 'aria-label': 'Relevant to Noahides', lang: 'en', dir: 'ltr' }) : null;
     };
     s.order.push(v);
     s.byKey.set(key, v);
