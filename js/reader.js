@@ -496,10 +496,45 @@
   /* ----------------------------------------------------- selection toolbar */
 
   /* Select a phrase in a unit's Hebrew or English and this floats above it:
-     add a commentary or review note quoting it, or bookmark the unit. */
-  let picked = null;   // { key, phrase }
+     add a commentary or review note quoting it, or bookmark the unit. In the
+     Hebrew it can also be translated by Claude (translate.js). */
+  let picked = null;   // { key, phrase, full (untruncated), he (in the Hebrew), cell, rect }
+  const transBtn = UI.el('button', {
+    type: 'button', text: 'Translate',
+    onmousedown: function (e) { e.preventDefault(); },
+    onclick: function () {
+      if (!picked || !live) return;
+      const p = picked;
+      hideSel();
+      const s = window.getSelection();
+      /* Where the selection is now: the page may have scrolled since it was made. */
+      if (s && s.rangeCount) {
+        const r = s.getRangeAt(0).getBoundingClientRect();
+        if (r.width || r.height) p.rect = { top: r.top, bottom: r.bottom, left: r.left, width: r.width };
+      }
+      if (s) s.removeAllRanges();
+      MT.translate.open({
+        text: p.full,
+        kind: MT.claude.isWord(p.full) ? 'word' : 'phrase',
+        context: cellText(p.cell),
+        where: [live.title, F.unitName(p.key)].filter(Boolean).join(', '),
+        key: p.key,
+        rect: p.rect,
+        onComment: function (gist) {
+          addNote(p.key, 'co', p.phrase).then(function () {
+            const ta = gist && live && live.units && live.units.panel &&
+              live.units.panel.querySelector('.cell.co .note.new textarea');
+            if (!ta) return;
+            ta.value += gist;
+            ta.dispatchEvent(new Event('input', { bubbles: true }));
+            ta.focus();
+          });
+        }
+      });
+    }
+  });
   const seltools = UI.el('div.seltools', { role: 'toolbar', 'aria-label': 'Note on the selection' }, [
-    selBtn('co', 'Comment'), selBtn('notes', 'Review note'), UI.el('button', {
+    transBtn, selBtn('co', 'Comment'), selBtn('notes', 'Review note'), UI.el('button', {
       type: 'button', text: 'Bookmark',
       onmousedown: function (e) { e.preventDefault(); },
       onclick: function () {
@@ -541,13 +576,24 @@
 
   function hideSel() { seltools.hidden = true; picked = null; }
 
-  /* The selection's text as read, without the label or sub-number tags. */
-  function phraseOf(range) {
+  /* The selection's text as read, without the label or sub-number tags,
+     cut to `max` characters (120 when not given; 0 for no limit). */
+  function phraseOf(range, max) {
     const box = document.createElement('div');
     box.appendChild(range.cloneContents());
+    return cleanText(box, max === undefined ? 120 : max);
+  }
+
+  /* A whole cell's text the same way: the passage a translation is set in. */
+  function cellText(cell) {
+    if (!cell) return '';
+    return cleanText(cell.cloneNode(true), 0);
+  }
+
+  function cleanText(box, max) {
     box.querySelectorAll('.label, .mk, .chg, .diff, button').forEach(function (n) { n.remove(); });
     let t = box.textContent.replace(/[*\s]+/g, ' ').trim();
-    if (t.length > 120) t = t.slice(0, 117).replace(/\s+\S*$/, '') + '…';
+    if (max && t.length > max) t = t.slice(0, max - 3).replace(/\s+\S*$/, '') + '…';
     return t;
   }
 
@@ -563,8 +609,14 @@
       !live.grid.contains(row)) return hideSel();
     const phrase = phraseOf(range);
     if (!phrase) return hideSel();
-    picked = { key: row.getAttribute('data-key'), phrase: phrase };
     const r = range.getBoundingClientRect();
+    const he = c.classList.contains('he');
+    picked = {
+      key: row.getAttribute('data-key'), phrase: phrase, he: he, cell: c,
+      full: phraseOf(range, 0),
+      rect: { top: r.top, bottom: r.bottom, left: r.left, width: r.width }
+    };
+    transBtn.hidden = !he;
     seltools.hidden = false;
     seltools.style.top = Math.max(0, r.top + window.scrollY - seltools.offsetHeight - 8) + 'px';
     seltools.style.left = Math.max(8, Math.min(window.scrollX + r.left + r.width / 2 - seltools.offsetWidth / 2,

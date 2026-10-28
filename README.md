@@ -32,6 +32,11 @@ and no build step, installable on desktop now and wrapped for Android
 - [x] **Live sessions.** Several people reading and editing one branch
   together, each seeing the others' edits within seconds, with one pull
   request at the end.
+- [x] **Translate.** Select Hebrew in the reader and choose Translate: Claude
+  gives a dictionary entry for a single word (with Klein's etymological entry
+  from Sefaria under it) or a translation of a phrase.
+  Each reader uses their own Anthropic API key (Settings), stored on the
+  device; the browser calls api.anthropic.com directly.
 - [ ] M5: PWA polish
 - [ ] M6: Android shell
 
@@ -253,6 +258,9 @@ Plain scripts on a global `MT` namespace, loaded in dependency order by
 | `review.js` | what the branch being read changed compared with its base, law by law |
 | `library.js` | index and parsed sections, merged law by law, drafts applied; `lib.edit` |
 | `bookmarks.js` | bookmarked laws, on this device (localStorage) |
+| `claude.js` | Claude client for Translate: the prompt, word-or-phrase, and the streamed answer (plain fetch, the reader's own API key) |
+| `translate.js` | the floating card that shows a translation as Claude writes it |
+| `sefaria.js` | Klein's Etymological Dictionary from Sefaria's word API, shown under a word's dictionary entry |
 | `editor.js` | the in-place textarea editor, autosaving |
 | `session.js` | live sessions: watching the branch, sharing each edit as it is finished, the resolver when two collide |
 | `books.js`, `reader.js`, `search.js`, `changes.js`, `branches.js`, `settings.js` | the screens (search.js also holds the search engine) |
