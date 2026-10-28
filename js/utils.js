@@ -70,6 +70,8 @@
     sayStop: 'page',    // …where it stops: 'page' (the chapter), 'law', or 'never' (on into the next chapter)
     name: '',       // signs review notes; filled from the token's login when checked
     login: '',      // the token's GitHub login, once known: names the submit branch
+    claudeKey: '',  // the reader's own Anthropic API key, for Translate (claude.js)
+    claudeModel: 'claude-opus-5-5',
     lastSubmit: null  // { number, url, branch, … } of the last pull request submitted to
   };
 

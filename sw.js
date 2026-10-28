@@ -6,7 +6,7 @@
    2. The entry point is network-first, so a deployed change is seen.
    3. A new worker never reloads the page; main.js toasts instead. */
 
-const CACHE_VERSION = 'v22';
+const CACHE_VERSION = 'v24';
 const CACHE = 'mt-reader-' + CACHE_VERSION;
 
 /* Must match the script tags in index.html. */
@@ -35,6 +35,9 @@ const SHELL = [
   'js/session.js',
   'js/books.js',
   'js/speech.js',
+  'js/claude.js',
+  'js/sefaria.js',
+  'js/translate.js',
   'js/reader.js',
   'js/search.js',
   'js/changes.js',
