@@ -87,7 +87,9 @@
     check: function () { return svg('<path d="m5 12.5 4.5 4.5L19 7.5"/>'); },
     close: function () { return svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'); },
     up: function () { return svg('<path d="m6 14.5 6-6 6 6"/>'); },
-    down: function () { return svg('<path d="m6 9.5 6 6 6-6"/>'); }
+    down: function () { return svg('<path d="m6 9.5 6 6 6-6"/>'); },
+    /* Go to it: an arrow out of the row. */
+    open: function () { return svg('<path d="M5 12h13M13 6.5 18.5 12 13 17.5"/>'); }
   };
 
 })(window.MT);

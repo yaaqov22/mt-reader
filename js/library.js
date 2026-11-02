@@ -109,6 +109,19 @@
       return sections.get(id);
     },
 
+    /* One layer of a section, drafts applied, without fetching the rest:
+       the Summary tab reads every section's commentary and nothing else.
+       A section already read in full is used as it is. */
+    layer: function (id, layer) {
+      if (sections.has(id)) return sections.get(id).then(function (sec) { return sec[layer]; });
+      const path = F.paths(id)[layer];
+      return Promise.all([MT.source.text(path), MT.drafts.ready()]).then(function (r) {
+        const d = MT.drafts.get(path);
+        const s = d ? d.text : r[0];
+        return s === null || s === undefined ? null : F.parse(s, layer);
+      });
+    },
+
     /* How each layer of a section differs from its draft's base:
        { layer: [change] } (see edit.js), for layers with a draft. */
     changes: function (sec) {

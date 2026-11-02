@@ -24,7 +24,7 @@
 
     const home = document.getElementById('home-btn');
     home.appendChild(MT.icons.books());
-    MT.bus.on('route', function (r) { home.classList.toggle('on', r.id === 'books'); });
+    MT.bus.on('route', function (r) { home.classList.toggle('on', r.id === 'books' || r.id === 'summary'); });
 
     bookmarkMenu();
     ghMenu();
