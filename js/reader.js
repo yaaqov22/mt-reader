@@ -496,7 +496,8 @@
   /* ----------------------------------------------------- selection toolbar */
 
   /* Select a phrase in a unit's Hebrew or English and this floats above it:
-     add a commentary or review note quoting it, or bookmark the unit. In the
+     search for it, add a commentary or review note quoting it, or bookmark
+     the unit. In the
      Hebrew it can also be translated by Claude (translate.js). */
   let picked = null;   // { key, phrase, full (untruncated), he (in the Hebrew), cell, rect }
   const transBtn = UI.el('button', {
@@ -533,8 +534,21 @@
       });
     }
   });
+  /* Search for the selection, the whole of it, on the search screen. */
+  const searchBtn = UI.el('button', {
+    type: 'button', text: 'Search',
+    onmousedown: function (e) { e.preventDefault(); },   // keep the selection
+    onclick: function () {
+      if (!picked) return;
+      const q = picked.full.replace(/…$/, '').slice(0, 200).trim();
+      hideSel();
+      const s = window.getSelection();
+      if (s) s.removeAllRanges();
+      if (q) UI.go('search', [q]);
+    }
+  });
   const seltools = UI.el('div.seltools', { role: 'toolbar', 'aria-label': 'Note on the selection' }, [
-    transBtn, selBtn('co', 'Comment'), selBtn('notes', 'Review note'), UI.el('button', {
+    transBtn, searchBtn, selBtn('co', 'Comment'), selBtn('notes', 'Review note'), UI.el('button', {
       type: 'button', text: 'Bookmark',
       onmousedown: function (e) { e.preventDefault(); },
       onclick: function () {

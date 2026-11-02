@@ -121,7 +121,8 @@ the English is read. The text is prepared for the voice in `js/speech.js`:
 **Editing.** There is no edit mode. A law's Hebrew and English each end in a
 pencil (on the row pointed at or chosen) that opens it in place; each note in
 the pane has its own; the pane's bar adds commentary or a review note to its
-law. Selecting a phrase in a law offers *Comment* and *Review note* with the phrase quoted and the
+law. Selecting a phrase in a law offers *Search* (the search screen with the phrase as its query), and
+*Comment* and *Review note* with the phrase quoted and the
 next free note number filled in; review notes are signed `**name** date -`
 with the name from Settings. With niqqud on, the pointed Hebrew is what gets
 edited. Text saves as you type; Ctrl+Enter or Esc closes the editor.
