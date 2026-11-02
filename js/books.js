@@ -39,10 +39,33 @@
     ]);
   }
 
+  /* The home screen's tabs: the index (this screen) and the summaries
+     (summary.js), each a route of its own. */
+  function tabs(cur) {
+    const tab = function (id, label) {
+      return UI.el('a.tab', { href: UI.href(id), text: label, 'aria-current': id === cur ? 'page' : null });
+    };
+    return UI.el('nav.tabs', { 'aria-label': 'Contents' }, [tab('books', 'Index'), tab('summary', 'Summary')]);
+  }
+
+  /* Open or close every <details> in `host` matching each selector. */
+  function setOpen(host, selectors, open) {
+    host.querySelectorAll(selectors).forEach(function (d) { d.open = open; });
+  }
+
   function render(host, ix, open) {
+    const list = UI.el('div.booklist');
     UI.fill(host, [
       UI.el('h1.page-title', { text: 'Mishneh Torah' }),
       UI.el('p.page-sub', { text: MT.source.label() }),
+      tabs('books'),
+      UI.el('div.toolbar', [
+        UI.btn('Expand all', { class: 'btn small', onclick: function () { setOpen(list, 'details.book, details.homesec', true); } }),
+        UI.btn('Collapse all', { class: 'btn small', onclick: function () { setOpen(list, 'details.book, details.homesec', false); } })
+      ]),
+      list
+    ]);
+    UI.append(list, [
       ix.books.map(function (b) {
         const d = UI.el('details.book', { open: !open || open === b.id }, [
           UI.el('summary', [
@@ -137,6 +160,8 @@
       });
     },
     chapterGrid: chapterGrid,
+    tabs: tabs,
+    setOpen: setOpen,
     setFlags: function (m) { flagged = m || new Map(); }
   };
 

@@ -34,6 +34,7 @@ const SHELL = [
   'js/editor.js',
   'js/session.js',
   'js/books.js',
+  'js/summary.js',
   'js/speech.js',
   'js/claude.js',
   'js/sefaria.js',
