@@ -132,6 +132,10 @@ edited. Text saves as you type; Ctrl+Enter or Esc closes the editor.
 Notes take Markdown: **bold**, *italic*, bulleted (`- `) and numbered
 (`1. `) lists, nested by indenting, and links, as `[text](url)` or a bare
 `https://` address.
+Where a law has two or more comments (or review notes), each has a handle
+beside its pencil: drag it to put the notes in another order, or focus it
+and use ↑ and ↓. The notes are renumbered to match (`orderNotes()` in
+`js/edit.js`), saved as a draft like any edit.
 
 Every edit is checked by round trip (`js/edit.js`): the file is written,
 parsed back, and must come back the same, so a paragraph that would turn

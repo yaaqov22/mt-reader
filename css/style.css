@@ -1225,7 +1225,14 @@ body.paned.pane-bottom .toast { bottom: calc(var(--pane-space, 48px) + 16px); }
 .note-edit svg { width: 15px; height: 15px; }
 div.note:hover .note-edit, .note-edit:focus-visible { opacity: 1; }
 .note-edit:hover { color: var(--accent); }
-@media (hover: none) { .note-edit { opacity: 0.6; } }
+.note-move { width: 26px; height: 26px; min-width: 26px; margin-right: auto; color: var(--faint); opacity: 0; cursor: grab; touch-action: none; }
+.note-move svg { width: 15px; height: 15px; }
+div.note:hover .note-move, .note-move:focus-visible { opacity: 1; }
+.note-move:hover { color: var(--accent); }
+.notelist.sorting, .notelist.sorting * { cursor: grabbing; user-select: none; }
+div.note.dragging { opacity: 0.55; outline: 1px dashed var(--accent); outline-offset: 3px; }
+div.note.dragging .note-move { opacity: 1; }
+@media (hover: none) { .note-edit, .note-move { opacity: 0.6; } }
 /* The pane's add buttons take their layer's colour. */
 .vp-add.add-notes { color: var(--accent); }
 
