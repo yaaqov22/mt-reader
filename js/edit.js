@@ -236,6 +236,34 @@
     return { doc: d, text: checked(d, layer, p, hit.ch) };
   }
 
+  /* → { doc, text } with the notes on unit `key` ("3:5") put in the order
+     `labels` gives (the same labels, in their new order). A note's place is
+     its number, the last part of its label, so the numbers the unit's notes
+     have are handed out again in the new order — each note keeping its
+     text and its range — and the notes sorted to match. Numbers used twice
+     (an old file) are made 1, 2, 3… instead. */
+  function orderNotes(doc, layer, key, labels) {
+    const d = clone(doc);
+    const hits = [];
+    for (const ch of d.chapters) for (const n of ch.notes) if (F.noteKey(n) === key) hits.push({ ch, note: n });
+    const byLabel = new Map(hits.map(h => [h.note.label, h]));
+    if (labels.length !== hits.length || labels.some(l => !byLabel.has(l)) || new Set(labels).size !== labels.length) {
+      throw editError('The notes here have changed meanwhile; try again.');
+    }
+    let nums = hits.map(h => h.note.i).sort((a, b) => a - b);
+    if (new Set(nums).size !== nums.length || nums.some(n => !(n > 0))) nums = nums.map((_, k) => k + 1);
+    const order = labels.map(l => byLabel.get(l));
+    order.forEach((h, k) => {
+      const n = h.note;
+      n.i = nums[k];
+      n.label = n.c + '.' + n.h + (n.h2 != null ? '-' + n.h2 : '') + '.' + n.i;
+    });
+    /* Out of their chapters, and back in at their new places. */
+    for (const h of order) h.ch.notes.splice(h.ch.notes.indexOf(h.note), 1);
+    for (const h of order) placeNote(h.ch, h.note);
+    return { doc: d, text: checked(d, layer, [], order.length ? order[0].ch : null) };
+  }
+
   /* ------------------------------------------------------------- flags */
 
   /* A flag's key, "<section>/<chapter key>". */
@@ -372,7 +400,7 @@
 
   MT.edit = {
     paragraphs, lawBody, noteBody, findLaw, findNote, findUnit, unitBody, putUnit,
-    setLaw, addNote, setNote, nextNoteLabel, notesChapter, placeNote,
+    setLaw, addNote, setNote, orderNotes, nextNoteLabel, notesChapter, placeNote,
     changes, revert, diffWords, flagKey, setFlag, flagEntries,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

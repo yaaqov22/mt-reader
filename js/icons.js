@@ -88,6 +88,8 @@
     close: function () { return svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'); },
     up: function () { return svg('<path d="m6 14.5 6-6 6 6"/>'); },
     down: function () { return svg('<path d="m6 9.5 6 6 6-6"/>'); },
+    /* A handle to drag by: two columns of dots. */
+    grip: function () { return svg('<path stroke-width="3" d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/>'); },
     /* Go to it: an arrow out of the row. */
     open: function () { return svg('<path d="M5 12h13M13 6.5 18.5 12 13 17.5"/>'); }
   };

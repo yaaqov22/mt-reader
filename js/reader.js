@@ -267,6 +267,123 @@
     return el;
   }
 
+  /* ------------------------------------------------------ moving notes */
+
+  /* A note's handle, beside its pencil: drag it to another place among the
+     unit's notes (of its layer), or, focused, move it with ↑ and ↓. The new
+     order is saved as an edit (edit.js orderNotes(): the notes' numbers
+     handed out again in that order), a draft like any other. Esc while
+     dragging puts it back. `was` is the order the notes are in now. */
+  let refocus = null;   // { layer, key, at }: the handle to focus after the repaint a keyboard move makes
+
+  function moveHandle(ctx, layer, key, el, was) {
+    const what = layer === 'notes' ? 'review note' : 'comment';
+    const h = UI.el('button.iconbtn.note-move', {
+      type: 'button', title: 'Drag to move this ' + what + ' (or ↑ and ↓)',
+      'aria-label': 'Move this ' + what + ': up and down arrows'
+    }, [MT.icons.grip()]);
+
+    const siblings = function (list) { return Array.from(list.querySelectorAll(':scope > .note.editable[data-label]')); };
+
+    function save(list, keyboard) {
+      const labels = siblings(list).map(function (n) { return n.getAttribute('data-label'); });
+      if (labels.join('\n') === was.join('\n')) return;
+      if (keyboard) refocus = { layer: layer, key: key, at: labels.indexOf(el.getAttribute('data-label')) };
+      lib.edit(ctx.id, layer, function (doc) { return E.orderNotes(doc, layer, key, labels); })
+        .then(function () { UI.refresh(); }, function (e) { refocus = null; UI.toast(e.message); UI.refresh(); });
+    }
+
+    function busy() {
+      if (!MT.editor.active()) return false;
+      UI.toast('Close the note being edited first.');
+      return true;
+    }
+
+    h.addEventListener('keydown', function (e) {
+      const d = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+      if (!d) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (busy()) return;
+      const list = el.parentNode;
+      const all = siblings(list);
+      const to = all[all.indexOf(el) + d];
+      if (!to) return;
+      list.insertBefore(el, d < 0 ? to : to.nextSibling);
+      save(list, true);
+    });
+
+    h.addEventListener('pointerdown', function (e) {
+      if (e.button !== 0 || busy()) return;
+      e.preventDefault();
+      const list = el.parentNode;
+      const scroller = el.closest('.pane-body');
+      const start = Array.from(list.children);
+      let cancelled = false;
+      /* On the window, not captured by the handle: moving the note in the
+         page would release a capture. */
+      const id = e.pointerId;
+      el.classList.add('dragging');
+      list.classList.add('sorting');
+
+      /* The note nearest the pointer, and whether to go after it: in one
+         column by height; in several, across, where the pointer is level
+         with it. */
+      function move(ev) {
+        if (ev.pointerId !== id) return;
+        if (scroller) {
+          const b = scroller.getBoundingClientRect();
+          if (ev.clientY < b.top + 28) scroller.scrollTop -= 12;
+          else if (ev.clientY > b.bottom - 28) scroller.scrollTop += 12;
+        }
+        const mine = el.getBoundingClientRect();
+        if (ev.clientX >= mine.left && ev.clientX <= mine.right && ev.clientY >= mine.top && ev.clientY <= mine.bottom) return;
+        let best = null, dist = Infinity;
+        siblings(list).forEach(function (n) {
+          if (n === el) return;
+          const r = n.getBoundingClientRect();
+          const dx = Math.max(r.left - ev.clientX, 0, ev.clientX - r.right);
+          const dy = Math.max(r.top - ev.clientY, 0, ev.clientY - r.bottom);
+          const d2 = dx * dx + dy * dy;
+          if (d2 < dist) { dist = d2; best = { n: n, r: r }; }
+        });
+        if (!best) return;
+        const r = best.r;
+        const level = ev.clientY >= r.top && ev.clientY <= r.bottom;
+        const columns = siblings(list).some(function (n) { return Math.abs(n.getBoundingClientRect().left - r.left) > 4; });
+        const after = columns && level ? ev.clientX > r.left + r.width / 2 : ev.clientY > r.top + r.height / 2;
+        const ref = after ? best.n.nextSibling : best.n;
+        if (ref !== el && el.nextSibling !== ref) list.insertBefore(el, ref);
+      }
+
+      function end(ev) {
+        if (ev.pointerId !== undefined && ev.pointerId !== id) return;
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', end);
+        window.removeEventListener('pointercancel', end);
+        document.removeEventListener('keydown', esc, true);
+        el.classList.remove('dragging');
+        list.classList.remove('sorting');
+        if (cancelled || ev.type === 'pointercancel') { start.forEach(function (n) { list.appendChild(n); }); return; }
+        save(list, false);
+      }
+
+      function esc(ev) {
+        if (ev.key !== 'Escape') return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        cancelled = true;
+        end({ type: 'cancel' });
+      }
+
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', end);
+      window.addEventListener('pointercancel', end);
+      document.addEventListener('keydown', esc, true);
+    });
+    return h;
+  }
+
   /* A note deleted in the draft, still shown (struck out) so it can be put back. */
   function deletedNote(ctx, change, layer) {
     const el = UI.el('div.note.deleted.' + kindOf(layer), MT.md.blocks(change.before.split('\n\n')[0]));
@@ -285,8 +402,22 @@
      heading, then the notes in columns; hidden while it has none (until one
      is added, newNote()). `box._count` is how many there are. */
   function notesCell(ctx, layer, key) {
-    const out = lib.notesFor(ctx.sec[layer], key).map(function (n) { return noteEl(ctx, n, layer); });
+    const notes = lib.notesFor(ctx.sec[layer], key);
+    const out = notes.map(function (n) { return noteEl(ctx, n, layer); });
     const count = out.length;
+    /* With two or more, each has a handle to move it. */
+    if (count > 1) {
+      const was = notes.map(function (n) { return n.label; });
+      out.forEach(function (el) { el.querySelector('.note-tools').prepend(moveHandle(ctx, layer, key, el, was)); });
+      if (refocus && refocus.layer === layer && refocus.key === key) {
+        const target = out[Math.min(refocus.at, count - 1)];
+        refocus = null;
+        setTimeout(function () {
+          const h = target.querySelector('.note-move');
+          if (h && document.contains(h)) h.focus();
+        }, 0);
+      }
+    }
     const gone = function (ch) { return ch.kind === 'note' && ch.after === null && ch.key === key; };
     (ctx.branch[layer] || []).filter(gone).forEach(function (ch) { out.push(branchDeletedNote(ctx, ch, layer)); });
     (ctx.changes[layer] || []).filter(gone).forEach(function (ch) { out.push(deletedNote(ctx, ch, layer)); });

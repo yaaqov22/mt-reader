@@ -120,6 +120,41 @@ test('setNote edits, and an empty body deletes the note and its emptied chapter'
   assert.equal(E.setNote(doc, 'co', '2.1.1', '').text, '# Laws of Things\n');
 });
 
+const CO3 = [
+  '# Laws of Things',
+  '## Laws of Things, Chapter 2',
+  '[^2.1.1]: A.',
+  '[^2.1.3]: B.',
+  '\tB goes on.',
+  '[^2.1-2.4]: C, on two laws.',
+  '[^2.2.1]: On another law.',
+].join('\n\n') + '\n';
+
+test('orderNotes hands the numbers out again in the new order', () => {
+  const doc = F.parse(CO3, 'co');
+  const r = E.orderNotes(doc, 'co', '2:1', ['2.1-2.4', '2.1.1', '2.1.3']);
+  assert.equal(r.text, [
+    '# Laws of Things',
+    '## Laws of Things, Chapter 2',
+    '[^2.1-2.1]: C, on two laws.',
+    '[^2.1.3]: A.',
+    '[^2.1.4]: B.',
+    '\tB goes on.',
+    '[^2.2.1]: On another law.',
+  ].join('\n\n') + '\n');
+  assert.deepEqual(r.doc.chapters[0].notes.map(n => n.label), ['2.1-2.1', '2.1.3', '2.1.4', '2.2.1']);
+  /* The same order is the same file. */
+  assert.equal(E.orderNotes(doc, 'co', '2:1', ['2.1.1', '2.1.3', '2.1-2.4']).text, CO3);
+  /* Changes are seen note by note, and each can be undone. */
+  assert.ok(E.changes(doc, r.doc, 'co').length > 0);
+});
+
+test('orderNotes refuses labels that are not the unit\'s notes', () => {
+  const doc = F.parse(CO3, 'co');
+  throwsEdit(() => E.orderNotes(doc, 'co', '2:1', ['2.1.1', '2.1.3']), /changed meanwhile/);
+  throwsEdit(() => E.orderNotes(doc, 'co', '2:1', ['2.1.1', '2.1.3', '2.2.1']), /changed meanwhile/);
+});
+
 /* ---------- paragraphs outside the laws ---------- */
 
 const OPEN = [
