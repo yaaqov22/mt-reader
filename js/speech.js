@@ -149,6 +149,14 @@
       all[0];
   }
 
+  /* The speed chosen for a language, 1 as the voice speaks. Each language
+     has its own (a learner may want the Hebrew slower); until one is chosen,
+     the single speed there used to be. */
+  function rateFor(lang) {
+    const get = function (k) { return MT.device ? +MT.device.get(k) : 0; };
+    return get(lang === 'he' ? 'sayRateHe' : 'sayRateEn') || get('sayRate') || 1;
+  }
+
   // The voices arrive after the page does, and can change.
   function onVoices(fn) {
     if (supported && synth.addEventListener) synth.addEventListener('voiceschanged', fn);
@@ -165,7 +173,6 @@
     stop();
     opts = opts || {};
     const mine = ++run;
-    const rate = +(MT.device && MT.device.get('sayRate')) || 1;
     const next = function (i) {
       if (mine !== run) return;
       if (i >= items.length) { finish(); if (opts.onDone) opts.onDone(); return; }
@@ -174,7 +181,7 @@
       u.lang = LANG_TAG[it.lang] || it.lang;
       const voice = voiceFor(it.lang);
       if (voice) u.voice = voice;
-      u.rate = rate;
+      u.rate = rateFor(it.lang);
       u.onend = function () { next(i + 1); };
       u.onerror = function (e) {
         if (mine !== run || e.error === 'interrupted' || e.error === 'canceled') return;
@@ -206,7 +213,7 @@
 
   MT.speech = {
     hebrew: hebrew, english: english,
-    supported: supported, voices: voices, voiceFor: voiceFor, defaultVoice: defaultVoice, onVoices: onVoices,
+    supported: supported, voices: voices, voiceFor: voiceFor, rateFor: rateFor, defaultVoice: defaultVoice, onVoices: onVoices,
     speak: speak, stop: stop
   };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

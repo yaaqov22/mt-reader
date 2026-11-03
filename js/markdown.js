@@ -34,8 +34,31 @@
     '\\*\\*\\*([^\\s*][\\s\\S]*?)\\*\\*\\*', // 4  ***bold italic***
     '\\*\\*([\\s\\S]+?)\\*\\*',         // 5     **bold**
     '\\*([^\\s*][\\s\\S]*?)\\*',        // 6     *italic*
-    '\\[([^\\]]*)\\]\\(([^)\\s]+)\\)'   // 7,8   [text](url)
+    '\\[([^\\]]*)\\]\\(([^)\\s]+)\\)',  // 7,8   [text](url)
+    '<(https?://[^\\s<>]+)>',           // 9     <https://…>
+    '(https?://[^\\s<>]+)'              // 10    https://… bare
   ].join('|'));
+
+  /* A bare URL ends before the punctuation of the sentence around it: a
+     final full stop, comma, quote or emphasis mark, and a closing bracket it
+     didn't open ("(see https://x.org/a_(b))" keeps the one, not the other). */
+  function bareUrl(s) {
+    for (;;) {
+      const last = s.charAt(s.length - 1);
+      if (/[.,;:!?'"*_\]]/.test(last)) s = s.slice(0, -1);
+      else if (last === ')' && s.split(')').length > s.split('(').length) s = s.slice(0, -1);
+      else return s;
+    }
+  }
+
+  function link(href, label, parent) {
+    const a = document.createElement('a');
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    inline(label, a, { inLink: true });
+    parent.appendChild(a);
+  }
 
   const SCHEMES = ['http:', 'https:', 'mailto:'];
 
@@ -110,22 +133,87 @@
       else if (m[8] !== undefined) {
         const href = safeHref(m[8]);
         if (!href) breaks(m[0], parent, ctx);
-        else {
-          const a = document.createElement('a');
-          a.href = href;
-          a.target = '_blank';
-          a.rel = 'noopener noreferrer';
-          inline(m[7] || href, a, { inLink: true });
-          parent.appendChild(a);
-        }
+        else link(href, m[7] || href, parent);
+      }
+      else if (m[9] !== undefined) {
+        const href = ctx.inLink ? null : safeHref(m[9]);
+        if (!href) breaks(m[0], parent, ctx);
+        else link(href, m[9], parent);
+      }
+      else if (m[10] !== undefined) {
+        const url = bareUrl(m[10]);
+        const href = ctx.inLink ? null : safeHref(url);
+        if (!href) breaks(url, parent, ctx);
+        else link(href, url, parent);
+        rest = rest.slice(m.index + url.length);
+        continue;
       }
       rest = rest.slice(m.index + m[0].length);
     }
     if (rest) breaks(rest, parent, ctx);
   }
 
+  /* A paragraph of a note, which may hold lists: lines starting "- ", "* "
+     or "+ " are bullets, "1. " or "1) " numbered items, and an item indented
+     under another is nested in it. An indented line that isn't an item
+     carries on the item above it; any other line ends the list. The rest is
+     paragraphs, as para() draws them. → an array of elements. */
+  const ITEM = /^([ \t]*)(?:([-*+])|(\d{1,9})[.)])[ \t]+(.*)$/;
+
+  function width(ws) { return ws.replace(/\t/g, '    ').length; }
+
+  function blocks(text, spec) {
+    const out = [];
+    const ctx = {};
+    let lines = null;    // the paragraph being gathered
+    let stack = [];      // the open lists, outermost first: { indent, list, li }
+
+    function flush() {
+      if (!lines) return;
+      const el = MT.ui.el(spec || 'p');
+      inline(lines.join('\n'), el, ctx);
+      out.push(el);
+      lines = null;
+    }
+
+    String(text === null || text === undefined ? '' : text).replace(/\r\n?/g, '\n').split('\n').forEach(function (line) {
+      const m = ITEM.exec(line);
+      if (m) {
+        flush();
+        const indent = width(m[1]);
+        const tag = m[2] ? 'ul' : 'ol';
+        while (stack.length && stack[stack.length - 1].indent > indent) stack.pop();
+        let top = stack[stack.length - 1];
+        if (top && top.indent === indent && top.list.tagName.toLowerCase() !== tag) { stack.pop(); top = stack[stack.length - 1]; }
+        if (!top || top.indent < indent) {
+          const list = document.createElement(tag);
+          if (m[3] && +m[3] !== 1) list.setAttribute('start', String(+m[3]));
+          if (top) top.li.appendChild(list); else out.push(list);
+          top = { indent: indent, list: list, li: null };
+          stack.push(top);
+        }
+        top.li = document.createElement('li');
+        inline(m[4], top.li, ctx);
+        top.list.appendChild(top.li);
+        return;
+      }
+      if (stack.length && /^[ \t]+\S/.test(line)) {
+        const li = stack[stack.length - 1].li;
+        li.appendChild(document.createElement('br'));
+        inline(line.trim(), li, ctx);
+        return;
+      }
+      stack = [];
+      if (!line.trim()) { flush(); return; }
+      (lines = lines || []).push(line);
+    });
+    flush();
+    return out;
+  }
+
   MT.md = {
     inline: inline,
+    blocks: blocks,
 
     /* One paragraph as an element (a <p> unless told otherwise). */
     para: function (text, spec) {
