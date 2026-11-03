@@ -72,7 +72,7 @@ No build step. Serve the folder over HTTP and open `index.html`.
 
 ← and → move between chapters; j and k move the notes pane to the next and
 previous law, Esc closes it; / opens search; p reads aloud (and stops), and
-J and K read the next and previous law aloud.
+J and K read the next and previous law aloud, and l the chosen one.
 
 **Reading.** The header names the section and the chapter between the arrows.
 The section's name opens the contents (every book, each section opening on a
@@ -92,14 +92,17 @@ law is chosen and marked as it is read, and its notes follow in the pane.
 While it reads, the button (drawn as pause), **p** or **Esc** stops it. The
 law stays chosen, so playing again starts it over. Choosing another law while
 reading reads on from there. **J** and **K** (Shift+j and Shift+k) move to
-the next or previous law and read it alone.
+the next or previous law and read it alone. **l** reads the chosen law
+alone (or starts it over), so j and k can move through the text and l
+play just the law chosen; the play button in the notes pane's bar does the
+same.
 
 The arrow beside the play button opens the reading options, which are kept
 on the device:
 - what is read: Hebrew, English, or both (each law in Hebrew, then English);
 - where it stops: the end of the chapter, the end of the law, or not until
   stopped (going on into the next chapter);
-- the speed;
+- the speed, the Hebrew's and the English's apart (50% to 130%);
 - the voices.
 
 The voices are the browser's own (the Web Speech API), so nothing leaves the
@@ -126,6 +129,9 @@ law. Selecting a phrase in a law offers *Search* (the search screen with the phr
 next free note number filled in; review notes are signed `**name** date -`
 with the name from Settings. With niqqud on, the pointed Hebrew is what gets
 edited. Text saves as you type; Ctrl+Enter or Esc closes the editor.
+Notes take Markdown: **bold**, *italic*, bulleted (`- `) and numbered
+(`1. `) lists, nested by indenting, and links, as `[text](url)` or a bare
+`https://` address.
 
 Every edit is checked by round trip (`js/edit.js`): the file is written,
 parsed back, and must come back the same, so a paragraph that would turn

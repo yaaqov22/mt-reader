@@ -66,7 +66,9 @@
     sayLang: 'he',      // reading aloud: 'he', 'en' or 'both' (each law in Hebrew, then English)
     sayVoiceHe: '',     // …the voices chosen (voiceURI), or '' for the device's own choice
     sayVoiceEn: '',
-    sayRate: 1,         // …the speed, 1 as the voice speaks
+    sayRate: 1,         // …the speed, 1 as the voice speaks: from before each language had its own
+    sayRateHe: 0,       // …the Hebrew's speed and the English's (0: sayRate's)
+    sayRateEn: 0,
     sayStop: 'page',    // …where it stops: 'page' (the chapter), 'law', or 'never' (on into the next chapter)
     name: '',       // signs review notes; filled from the token's login when checked
     login: '',      // the token's GitHub login, once known: names the submit branch

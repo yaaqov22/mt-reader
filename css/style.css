@@ -998,6 +998,8 @@ div.note { margin: 0 0 12px; padding-left: 10px; border-left: 2px solid var(--li
 div.note:last-child { margin-bottom: 0; }
 div.note.review { border-left-color: var(--accent); }
 div.note p { margin: 0 0 0.5em; }
+div.note ul, div.note ol { margin: 0 0 0.5em; padding-left: 1.4em; }
+div.note li > ul, div.note li > ol { margin: 0; }
 .note-range { font-size: 12px; color: var(--faint); }
 .co-head { font-size: 15px; margin: 0 0 6px; color: var(--text); }
 
@@ -1232,7 +1234,7 @@ div.note:hover .note-edit, .note-edit:focus-visible { opacity: 1; }
 .cell.changed { border-inline-start: 3px solid var(--edit); padding-inline-start: 9px; margin-inline-start: -12px; }
 div.note.changed, div.note.new { border-left-color: var(--edit); }
 div.note.deleted { border-left-color: var(--bad); }
-div.note.deleted p { text-decoration: line-through; opacity: 0.65; }
+div.note.deleted p, div.note.deleted > ul, div.note.deleted > ol { text-decoration: line-through; opacity: 0.65; }
 
 /* What the branch being read changed compared with its base (review.js):
    the same rule in blue. A draft's green, drawn after, wins where both are. */

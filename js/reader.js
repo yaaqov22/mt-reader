@@ -217,8 +217,8 @@
 
   function noteContent(n) {
     return [
-      MT.md.para(n.text, 'p'),
-      paras(n.more),
+      MT.md.blocks(n.text),
+      (n.more || []).map(function (b) { return MT.md.blocks(b); }),
       n.h2 != null ? UI.el('p.note-range', { text: 'on ' + noteRange(n) }) : null
     ];
   }
@@ -269,14 +269,14 @@
 
   /* A note deleted in the draft, still shown (struck out) so it can be put back. */
   function deletedNote(ctx, change, layer) {
-    const el = UI.el('div.note.deleted.' + kindOf(layer), [MT.md.para(change.before.split('\n\n')[0], 'p')]);
+    const el = UI.el('div.note.deleted.' + kindOf(layer), MT.md.blocks(change.before.split('\n\n')[0]));
     el.appendChild(changeBar(ctx, layer, change, el));
     return el;
   }
 
   /* A note the branch deleted, struck out where it stood. */
   function branchDeletedNote(ctx, change, layer) {
-    const el = UI.el('div.note.deleted.branched.' + kindOf(layer), [MT.md.para(change.before.split('\n\n')[0], 'p')]);
+    const el = UI.el('div.note.deleted.branched.' + kindOf(layer), MT.md.blocks(change.before.split('\n\n')[0]));
     el.appendChild(branchBar(ctx, change, el));
     return el;
   }
@@ -1248,6 +1248,10 @@
         }))
         : UI.el('span.pane-count.none', { text: 'No notes' })) : null,
       v ? UI.el('div.vp-tools', [
+        v.head || !MT.speech.supported ? null : UI.el('button.iconbtn.vp-say', {
+          type: 'button', title: 'Read this law aloud (l)', 'aria-label': 'Read this law aloud',
+          onclick: sayChosen
+        }, [MT.icons.play()]),
         addBtn(key, 'co'), addBtn(key, 'notes'),
         stepBtn(s, v, -1), stepBtn(s, v, 1),
         bookmarkBtn(ctx, key),
@@ -1518,6 +1522,17 @@
     readFrom(chosen && s.byKey.get(chosen.key) || here && s.byKey.get(here.key) || s.order[0], sayStop());
   }
 
+  /* l, and the play button in the pane: the chosen law (or the one at the
+     top of the screen), read alone, from its start again if it is being
+     read. */
+  function sayChosen() {
+    if (!live) return;
+    const s = live.units;
+    const here = MT.reader.here();
+    const v = chosen && s.byKey.get(chosen.key) || here && s.byKey.get(here.key) || spokenFrom(s, 0, 1);
+    if (v) readFrom(v, 'one');
+  }
+
   /* J and K: the next or previous law, read alone. */
   function sayStep(d) {
     if (!live) return;
@@ -1593,15 +1608,22 @@
       MT.device.set(p);
       fillSayMenu(menu);
     };
-    /* A row of buttons choosing one of `opts` ([value, label], in order). */
-    const segs = function (key, label, opts) {
+    /* A row of buttons choosing one of `opts` ([value, label], in order);
+       `now` the value chosen, when it isn't simply the setting's. */
+    const segs = function (key, label, opts, now) {
+      const at = String(now === undefined ? MT.device.get(key) : now);
       return UI.el('div.segs.dm-segs', { role: 'group', 'aria-label': label }, opts.map(function (o) {
         const v = o[0];
         return UI.el('button.seg', {
-          type: 'button', text: o[1], 'aria-pressed': String(MT.device.get(key)) === v ? 'true' : 'false',
-          onclick: function () { keep(key, key === 'sayRate' ? +v : v); }
+          type: 'button', text: o[1], 'aria-pressed': at === v ? 'true' : 'false',
+          onclick: function () { keep(key, typeof now === 'number' ? +v : v); }
         });
       }));
+    };
+    /* Each language's speed: the Hebrew can be slower than the English. */
+    const SPEEDS = [['0.5', '50%'], ['0.7', '70%'], ['0.85', '85%'], ['1', '100%'], ['1.15', '115%'], ['1.3', '130%']];
+    const speed = function (code, key, name) {
+      return UI.el('div.say-voice', [UI.el('span.dm-sub', { text: name }), segs(key, name + ' speed', SPEEDS, S.rateFor(code))]);
     };
     const voice = function (code, key, name) {
       const all = S.voices(code);
@@ -1629,9 +1651,11 @@
         }, [UI.el('span.dm-check', [MT.icons.check()]), UI.el('span', { text: SAY_STOP[k] })]);
       })),
       UI.el('p.dm-sub', { text: stop === 'never' ? 'From one chapter into the next.' : 'J and K read the next or previous law alone.' }),
+      UI.el('p.dm-sub', { text: 'l reads the chosen law alone, as j and k move from law to law.' }),
 
       UI.el('div.dm-head', { text: 'Speed' }),
-      segs('sayRate', 'Speed', [['0.7', '70%'], ['0.85', '85%'], ['1', '100%'], ['1.15', '115%'], ['1.3', '130%']]),
+      speed('he', 'sayRateHe', 'Hebrew'),
+      speed('en', 'sayRateEn', 'English'),
 
       UI.el('div.dm-head', { text: 'Voices' }),
       he ? UI.el('label.say-voice', [UI.el('span.dm-sub', { text: 'Hebrew' }), he])
@@ -1921,13 +1945,14 @@
   /* ← and → turn chapters, when the reader is open and nothing is being
      typed. j and k move the pane to the next and previous law, and Esc
      closes it (or first stops reading aloud). p reads aloud, and stops;
-     J and K read the next and previous law alone. */
+     J and K read the next and previous law alone, and l the chosen one. */
   document.addEventListener('keydown', function (e) {
     if (UI.current().id !== 'read' || !nav || e.altKey || e.ctrlKey || e.metaKey) return;
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     if (live && e.key === 'p' && MT.speech.supported) { e.preventDefault(); sayToggle(); return; }
     if (live && (e.key === 'J' || e.key === 'K') && MT.speech.supported) { e.preventDefault(); sayStep(e.key === 'J' ? 1 : -1); return; }
+    if (live && e.key === 'l' && MT.speech.supported) { e.preventDefault(); sayChosen(); return; }
     if (reading && e.key === 'Escape' && !e.defaultPrevented && !MT.editor.active()) { stopReading(); return; }
     if (live && (e.key === 'j' || e.key === 'k')) {
       const s = live.units;
