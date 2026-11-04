@@ -92,6 +92,66 @@ test('Hebrew: only numerals as numerals are written', () => {
   assert.deepEqual(refs('**טו,א** האישה'), []);   // a law's own label
 });
 
+test('Tanakh: the forms the Mishneh Torah references take too', () => {
+  assert.deepEqual(refs('Genesis 1:1'), ['Genesis 1:1 → 01/1/1']);
+  assert.deepEqual(refs('Genesis 1:1-7'), ['Genesis 1:1-7 → 01/1/1']);
+  assert.deepEqual(refs('Genesis 1:3-2:7'), ['Genesis 1:3-2:7 → 01/1/3']);
+  assert.deepEqual(refs('Genesis 1:2, 1:10, 2:7'), ['Genesis 1:2 → 01/1/2', '1:10 → 01/1/10', '2:7 → 01/2/7']);
+  assert.deepEqual(refs('see Genesis, chapter 1, for'), ['Genesis, chapter 1 → 01/1']);
+  assert.deepEqual(refs('see Genesis, chapters 1-3, for'), ['Genesis, chapters 1-3 → 01/1']);
+  assert.deepEqual(refs('Genesis chapters 1 to 3'), ['Genesis chapters 1 to 3 → 01/1']);
+  assert.deepEqual(refs('Genesis, chapter 51'), []);
+});
+
+/* ---------- the Mishneh Torah ---------- */
+
+R.sections({ books: [
+  { id: '1', sections: [
+    { id: '1-4', en: 'Laws of Idolatry and Gentile Customs', chapters: [{ key: '1', laws: 3 }, { key: '2', laws: 10 }, { key: '3', laws: 11 }] },
+    { id: '1-0', en: 'Book One: The Book of Knowledge', chapters: [] },
+  ] },
+  { id: '4', sections: [
+    { id: '4-1', en: 'The Laws of Marriage', chapters: [{ key: '1', laws: 4 }] },
+    { id: '4-9', en: 'Laws of Things', chapters: [{ key: '0', laws: 4 }] },
+  ] },
+] });
+
+const IDOL = 'Laws of Idolatry and Gentile Customs';
+
+test('Mishneh Torah: a halakhah, a range, several', () => {
+  assert.deepEqual(refs(IDOL + ' 1:1'), [IDOL + ' 1:1 → 1-4/1/1']);
+  assert.deepEqual(refs('(' + IDOL + ' 1:1-3)'), [IDOL + ' 1:1-3 → 1-4/1/1']);
+  assert.deepEqual(refs(IDOL + ' 1:3-2:3.'), [IDOL + ' 1:3-2:3 → 1-4/1/3']);
+  assert.deepEqual(refs(IDOL + ' 1:2, 2:10, 3:3'), [IDOL + ' 1:2 → 1-4/1/2', '2:10 → 1-4/2/10', '3:3 → 1-4/3/3']);
+  assert.deepEqual(refs(IDOL + ' 2:1, 4 and'), [IDOL + ' 2:1 → 1-4/2/1', '4 → 1-4/2/4']);
+  assert.deepEqual(refs(IDOL + ' 1:3 and 2:9.'), [IDOL + ' 1:3 → 1-4/1/3', '2:9 → 1-4/2/9']);
+  assert.deepEqual(refs(IDOL + ' 2:9: while'), [IDOL + ' 2:9 → 1-4/2/9']);   // a colon after it
+  assert.deepEqual(refs('Genesis 1:28: "Be fruitful"'), ['Genesis 1:28 → 01/1/28']);
+});
+
+test('Mishneh Torah: chapters in words, to their first halakhah', () => {
+  assert.deepEqual(refs('see ' + IDOL + ', chapter 2, which'), [IDOL + ', chapter 2 → 1-4/2/1']);
+  assert.deepEqual(refs('see ' + IDOL + ', chapters 1-3.'), [IDOL + ', chapters 1-3 → 1-4/1/1']);
+  assert.deepEqual(refs('(' + IDOL + ' 2)'), [IDOL + ' 2 → 1-4/2/1']);
+  assert.deepEqual(refs(IDOL + ' 2 times'), []);
+});
+
+test('Mishneh Torah: titles as index.json has them, checked against it', () => {
+  assert.deepEqual(refs('the Laws of Marriage 1:4'), ['Laws of Marriage 1:4 → 4-1/1/4']);
+  assert.deepEqual(refs(IDOL + ' 1:4'), []);       // chapter 1 has 3
+  assert.deepEqual(refs(IDOL + ' 4:1'), []);       // no chapter 4
+  assert.deepEqual(refs(IDOL + ' 1,2'), []);       // the comma form is the Tanakh's
+  assert.deepEqual(refs('Laws of Idolatry 2:3'), []);   // not its title
+  assert.deepEqual(refs('Laws of Things 1:1'), []);     // no numbered chapters
+  const r = R.find(IDOL + ' 1:1 (Genesis 1:1)', {});
+  assert.deepEqual(r.map(x => x.internal), [true, false]);
+  assert.equal(r[0].title, IDOL + ' 1:1');
+});
+
+test('Mishneh Torah: ibid. is the section named before it', () => {
+  assert.deepEqual(refs('(' + IDOL + ' 2:1; ibid. 3:4)'), [IDOL + ' 2:1 → 1-4/2/1', 'ibid. 3:4 → 1-4/3/4']);
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('FAIL ' + f);
 process.exit(failures.length ? 1 : 0);

@@ -72,6 +72,8 @@
             b.sections.forEach(function (s) { s.book = b; ix.order.push(s); });
           });
           ix.byId = new Map(ix.order.map(function (s) { return [s.id, s]; }));
+          /* The sections' titles, for references to them in the text. */
+          MT.refs.sections(ix);
           return ix;
         });
         indexP.catch(function () { indexP = null; });

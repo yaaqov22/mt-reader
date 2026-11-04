@@ -20,7 +20,9 @@
    THE TANAKH REFERENCES. "(Genesis 1:28)" and "(בראשית א,כח)" in the plain
    text become links to the verse in the Tanakh Reader (refs.js). They are
    found as the text is drawn; the files are never changed. A paragraph
-   shares one context, so an "ibid." finds the book named before it. */
+   shares one context, so an "ibid." finds the book named before it. So do
+   references to the Mishneh Torah itself ("Laws of Kings and Wars 9:4"),
+   which link to the halakhah in this reader, in this tab. */
 
 (function (MT) {
   'use strict';
@@ -85,11 +87,11 @@
       MT.refs.find(text, ctx).forEach(function (r) {
         if (r.start > at) parent.appendChild(document.createTextNode(text.slice(at, r.start)));
         const a = document.createElement('a');
-        a.className = 'ref';
+        a.className = r.internal ? 'ref mt' : 'ref';
         a.href = r.href;
         a.title = r.title;
-        a.target = '_blank';
-        a.rel = 'noopener';
+        /* The Tanakh Reader in a tab of its own; a halakhah here, in this one. */
+        if (!r.internal) { a.target = '_blank'; a.rel = 'noopener'; }
         a.textContent = text.slice(r.start, r.end);
         parent.appendChild(a);
         at = r.end;
