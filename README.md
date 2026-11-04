@@ -261,7 +261,7 @@ Plain scripts on a global `MT` namespace, loaded in dependency order by
 | `merge.js` | per-law three-way merge of a draft with the file as it now is, and moving a draft onto a newer text; shared with the Node tools |
 | `submit.js` | submitting: branch, merge, commit, pull request; sharing in a live session; and merging a pull request (no DOM; tested against a fake GitHub) |
 | `icons.js`, `ui.js`, `markdown.js` | inline SVG icons, DOM helper and hash router, inline Markdown to DOM (never `innerHTML`) |
-| `refs.js` | finds the Tanakh references in the text ("Genesis 1:28", "בראשית א,כח", "Genesis, chapters 1-3") as it is drawn, for `markdown.js` to link to the verse in the [Tanakh Reader](https://yaaqov22.github.io/tanakh-reader/), and references to the Mishneh Torah by a section's English title from `index.json` ("Laws of Idolatry and Gentile Customs 1:2, 1:10", "…, chapter 1") to link to the halakhah here; shared with the Node tools |
+| `refs.js` | finds the Tanakh references in the text ("Genesis 1:28", "בראשית א,כח", "Genesis, chapters 1-3") as it is drawn, for `markdown.js` to link to the verse in the [Tanakh Reader](https://yaaqov22.github.io/tanakh-reader/), and references to the Mishneh Torah by a section's English title from `index.json` ("Laws of Idolatry and Gentile Customs 1:2, 1:10", "…, chapter 1") and to the lists of the commandments ("Negative Commandment 52") to link to the halakhah here; shared with the Node tools |
 | `store.js` | IndexedDB (`blobs` by SHA, `kv`, `drafts`) |
 | `github.js` | GitHub REST client: reading, and the Git Data and pull request calls |
 | `source.js` | GitHub or local folder, and the offline cache |

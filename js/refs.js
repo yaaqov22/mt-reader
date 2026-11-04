@@ -96,8 +96,14 @@
   function sections(ix) {
     names.mt.forEach(function (n) { delete byName[n]; });
     names.mt = [];
+    lists = {};
     ((ix && ix.books) || []).forEach(function (b) {
       (b.sections || []).forEach(function (s) {
+        /* The lists of the commandments: one unnumbered run, its Nth
+           paragraph the Nth commandment. */
+        const list = /^(Positive|Negative) Commandments$/.exec(s.en || '');
+        const run = list && s.chapters && s.chapters.length === 1 && s.chapters[0].key === '0' ? s.chapters[0] : null;
+        if (run) lists[list[1].toLowerCase()] = { id: s.id, laws: run.laws || 0 };
         const chapters = new Map();
         (s.chapters || []).forEach(function (c) { if (/^[1-9]\d*$/.test(c.key)) chapters.set(+c.key, c.laws || 0); });
         const title = String(s.en || '').replace(/^The /, '').trim();
@@ -107,6 +113,41 @@
       });
     });
     head = null;
+  }
+
+  /* THE COMMANDMENTS. "Negative Commandment 52" (or "Positive …") links to
+     it in the list of the commandments: "Negative Commandments 52-54" to the
+     first, and "Negative Commandments 52, 53 and 54" each to its own. */
+  let lists = {};
+  const COMMANDMENT = /\b([Pp]ositive|[Nn]egative) [Cc]ommandments? (?:#|[Nn]o\.\s?)?(\d{1,3})(?:\s?[-–]\s?\d{1,3})?(?!\w|:\d)/g;
+  const MORE_N = /^((?:\s?,\s?(?:and\s)?|\sand\s))(\d{1,3})(?:\s?[-–]\s?\d{1,3})?(?!\w|:\d)/;
+
+  function commandment(kind, n) {
+    const list = lists[kind.toLowerCase()];
+    if (!list || !(n >= 1 && n <= list.laws)) return null;
+    const name = kind.charAt(0).toUpperCase() + kind.slice(1).toLowerCase() + ' Commandment ' + n;
+    return { href: '#/read/' + encodeURIComponent(list.id) + '/0/' + n, title: name, internal: true };
+  }
+
+  function commandments(text) {
+    const out = [];
+    COMMANDMENT.lastIndex = 0;
+    let m;
+    while ((m = COMMANDMENT.exec(text))) {
+      const l = commandment(m[1], +m[2]);
+      if (!l) continue;
+      let end = m.index + m[0].length;
+      out.push(Object.assign({ start: m.index, end: end }, l));
+      for (;;) {
+        const n = MORE_N.exec(text.slice(end));
+        const l2 = n && commandment(m[1], +n[2]);
+        if (!l2) break;
+        out.push(Object.assign({ start: end + n[1].length, end: end + n[0].length }, l2));
+        end += n[0].length;
+      }
+      COMMANDMENT.lastIndex = end;
+    }
+    return out;
   }
 
   /* The head of a reference: a book or section (or "ibid."), then either
@@ -228,7 +269,11 @@
       }
       H.lastIndex = end;
     }
-    return out;
+    /* With the commandments, in order, none overlapping another. */
+    commandments(text).forEach(function (c) {
+      if (!out.some(function (r) { return c.start < r.end && r.start < c.end; })) out.push(c);
+    });
+    return out.sort(function (a, b) { return a.start - b.start; });
   }
 
   MT.refs = { find: find, href: href, sections: sections };

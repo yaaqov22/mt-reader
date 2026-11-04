@@ -152,6 +152,37 @@ test('Mishneh Torah: ibid. is the section named before it', () => {
   assert.deepEqual(refs('(' + IDOL + ' 2:1; ibid. 3:4)'), [IDOL + ' 2:1 → 1-4/2/1', 'ibid. 3:4 → 1-4/3/4']);
 });
 
+test('Commandments: none until the lists are known', () => {
+  assert.deepEqual(refs('see Negative Commandment 999'), []);
+});
+
+R.sections({ books: [
+  { id: '0', sections: [
+    { id: '0-2', en: 'Positive Commandments', chapters: [{ key: '0', laws: 248 }] },
+    { id: '0-3', en: 'Negative Commandments', chapters: [{ key: '0', laws: 365 }] },
+    { id: '0-4', en: 'Enacted Commandments', chapters: [{ key: '0', laws: 5 }] },
+  ] },
+  { id: '1', sections: [
+    { id: '1-4', en: 'Laws of Idolatry and Gentile Customs', chapters: [{ key: '1', laws: 3 }, { key: '2', laws: 10 }] },
+  ] },
+] });
+
+test('Commandments: one, a range, several', () => {
+  assert.deepEqual(refs('(see Negative Commandment 52, and Laws of Idolatry and Gentile Customs 2:1)'),
+    ['Negative Commandment 52 → 0-3/0/52', 'Laws of Idolatry and Gentile Customs 2:1 → 1-4/2/1']);
+  assert.deepEqual(refs('Positive Commandment 248.'), ['Positive Commandment 248 → 0-2/0/248']);
+  assert.deepEqual(refs('negative commandments 52-54'), ['negative commandments 52-54 → 0-3/0/52']);
+  assert.deepEqual(refs('Negative Commandments 52, 53 and 54;'),
+    ['Negative Commandments 52 → 0-3/0/52', '53 → 0-3/0/53', '54 → 0-3/0/54']);
+  assert.deepEqual(refs('Positive Commandment #3'), ['Positive Commandment #3 → 0-2/0/3']);
+});
+
+test('Commandments: only those the lists have', () => {
+  assert.deepEqual(refs('Positive Commandment 249'), []);
+  assert.deepEqual(refs('Negative Commandment 366'), []);
+  assert.deepEqual(refs('Enacted Commandment 2'), []);
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('FAIL ' + f);
 process.exit(failures.length ? 1 : 0);
