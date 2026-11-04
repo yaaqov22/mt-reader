@@ -15,7 +15,16 @@
    the book, so "ויקרא" the verb or a stray "Numbers 3" in a sentence doesn't
    become a link. The Hebrew numerals must be written as numerals are (strict,
    format.hebNumeral). A chapter alone is linked only where the reference ends,
-   before ")" or ";". */
+   before ")" or ";" — unless the word says so: "Genesis, chapter 1",
+   "Genesis, chapters 1-3" (to the first of them).
+
+   THE MISHNEH TORAH. Its sections are referred to the same ways, by their
+   English titles as index.json has them ("Laws of Idolatry and Gentile
+   Customs 1:1", "… 1:1-7", "… 1:10-2:3", "… 1:2, 1:10, 2:3", "…, chapter 1",
+   "…, chapters 1-3"), and link within this reader to the halakhah (the first
+   of a range, the first of a chapter). A title's leading "The" may be left
+   out. The titles are learnt once index.json is read (sections()), and each
+   chapter and halakhah is checked against it. */
 
 (function (MT) {
   'use strict';
@@ -67,9 +76,9 @@
   ];
 
   const byName = {};
-  const names = { en: [], he: [] };
+  const names = { en: [], he: [], mt: [] };
   BOOKS.forEach(function (b) {
-    const book = { id: b[0], chapters: b[1], en: b[2], he: b[3] };
+    const book = { kind: 'tanakh', id: b[0], chapters: b[1], en: b[2], he: b[3] };
     b.slice(2).forEach(function (n) {
       byName[n] = book;
       names[/[א-ת]/.test(n) ? 'he' : 'en'].push(n);
@@ -80,23 +89,53 @@
     return list.slice().sort(function (a, b) { return b.length - a.length; }).join('|');
   };
 
-  /* The head of a reference: a book (or "ibid."), its chapter, maybe a verse,
-     maybe the end of a range ("-6", "-10:2"), which is skipped over. */
-  const HEAD = new RegExp(
-    '\\b(' + alt(names.en) + '|[Ii]bid\\.?) (?:[Cc]hapter )?(\\d{1,3})(?:([:,])(\\d{1,3}))?' +
-      '(?:\\s?[-–]\\s?\\d{1,3}(?:[:,]\\d{1,3})?)?(?![\\w:])' +
-    '|(' + alt(names.he) + ') ([א-ת]{1,4})(?:,([א-ת]{1,4}))?' +
-      '(?:[-–][א-ת]{1,4}(?:,[א-ת]{1,4})?)?(?![א-ת])', 'g');
+  const escape = function (s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
 
-  /* What may follow one, in the same book: "; 9:9" or ", 9:9" after the colon
-     form, "; 9,9" after the comma form, and ", 10" (a verse in the same
-     chapter) after a colon form's verse. The comma form has no bare verse:
-     "5,17, 18" can't be told apart. */
+  /* The sections of the Mishneh Torah, from index.json: each one with
+     numbered chapters, by its English title (without a leading "The"). */
+  function sections(ix) {
+    names.mt.forEach(function (n) { delete byName[n]; });
+    names.mt = [];
+    ((ix && ix.books) || []).forEach(function (b) {
+      (b.sections || []).forEach(function (s) {
+        const chapters = new Map();
+        (s.chapters || []).forEach(function (c) { if (/^[1-9]\d*$/.test(c.key)) chapters.set(+c.key, c.laws || 0); });
+        const title = String(s.en || '').replace(/^The /, '').trim();
+        if (!chapters.size || !title || byName[title]) return;
+        byName[title] = { kind: 'mt', id: s.id, en: title, chapters: chapters };
+        names.mt.push(title);
+      });
+    });
+    head = null;
+  }
+
+  /* The head of a reference: a book or section (or "ibid."), then either
+     its chapters in words (", chapter 1", ", chapters 1-3"), or its chapter,
+     maybe a verse, maybe the end of a range ("-6", "-10:2"), which is
+     skipped over. Made again when the sections are learnt. */
+  let head = null;
+  function HEAD() {
+    if (head) return head;
+    head = new RegExp(
+      '\\b(' + alt(names.en.concat(names.mt.map(escape))) + '|[Ii]bid\\.?)(?:' +
+        ',? [Cc]hapters? (\\d{1,3})(?:\\s?(?:[-–]|to|and)\\s?\\d{1,3})?' +
+      '|' +
+        ' (\\d{1,3})(?:([:,])(\\d{1,3}))?(?:\\s?[-–]\\s?\\d{1,3}(?:[:,]\\d{1,3})?)?' +
+      ')(?!\\w|:\\d)' +   // not "9:5:3", but "9:5: while" is one
+      '|(' + alt(names.he) + ') ([א-ת]{1,4})(?:,([א-ת]{1,4}))?' +
+        '(?:[-–][א-ת]{1,4}(?:,[א-ת]{1,4})?)?(?![א-ת])', 'g');
+    return head;
+  }
+
+  /* What may follow one, in the same book: "; 9:9", ", 9:9" or " and 9:9"
+     after the colon form, "; 9,9" after the comma form, and ", 10" (a verse
+     in the same chapter) after a colon form's verse. The comma form has no
+     bare verse: "5,17, 18" can't be told apart. */
   const MORE_CV = {
-    ':': /^(\s?[,;]\s?(?:and\s)?)(\d{1,3}):(\d{1,3})(?:\s?[-–]\s?\d{1,3}(?::\d{1,3})?)?(?![\w:])/,
+    ':': /^((?:\s?[,;]\s?(?:and\s)?|\sand\s))(\d{1,3}):(\d{1,3})(?:\s?[-–]\s?\d{1,3}(?::\d{1,3})?)?(?!\w|:\d)/,
     ',': /^(\s?;\s?(?:and\s)?)(\d{1,3}),(\d{1,3})(?:\s?[-–]\s?\d{1,3}(?:,\d{1,3})?)?(?![\w:])/
   };
-  const MORE_V = /^(\s?,\s?(?:and\s)?)(\d{1,3})(?:\s?[-–]\s?\d{1,3})?(?![\w:])/;
+  const MORE_V = /^(\s?,\s?(?:and\s)?)(\d{1,3})(?:\s?[-–]\s?\d{1,3})?(?!\w|:\d)/;
   const MORE_HE = /^(;\s?)([א-ת]{1,4}),([א-ת]{1,4})(?:[-–][א-ת]{1,4}(?:,[א-ת]{1,4})?)?(?![א-ת])/;
 
   function heNum(s) { return MT.format.hebNumeral(s); }
@@ -105,7 +144,19 @@
     return BASE + '#/read/' + book.id + '/' + ch + (v ? '/' + v : '');
   }
 
+  /* A section's halakhah (the chapter's first when `v` is null), in this
+     reader. */
+  function mtLink(sec, ch, v) {
+    const laws = sec.chapters.get(ch);
+    if (laws === undefined || (v !== null && !(v >= 1 && v <= laws))) return null;
+    return {
+      href: '#/read/' + encodeURIComponent(sec.id) + '/' + ch + '/' + (v || 1),
+      title: v ? sec.en + ' ' + ch + ':' + v : sec.en + ', chapter ' + ch
+    };
+  }
+
   function link(book, ch, v, lang) {
+    if (book && book.kind === 'mt') return lang === 'en' ? mtLink(book, ch, v) : null;
     if (!book || !(ch >= 1 && ch <= book.chapters) || (v !== null && !(v >= 1))) return null;
     const F = MT.format;
     const where = lang === 'he'
@@ -125,34 +176,39 @@
   function find(text, ctx) {
     ctx = ctx || {};
     const out = [];
-    HEAD.lastIndex = 0;
+    const H = HEAD();
+    H.lastIndex = 0;
     let m;
-    while ((m = HEAD.exec(text))) {
+    while ((m = H.exec(text))) {
       const start = m.index;
       let end = start + m[0].length;
-      let book, lang, ch, v, sep = ':';
+      let book, lang, ch, v, sep = ':', worded = false;
       if (m[1] !== undefined) {
         lang = 'en';
         book = /^ibid/i.test(m[1]) ? ctx.book : byName[m[1]];
-        ch = +m[2];
-        v = m[4] !== undefined ? +m[4] : null;
-        if (m[3]) sep = m[3];
+        worded = m[2] !== undefined;
+        ch = +(worded ? m[2] : m[3]);
+        v = m[5] !== undefined ? +m[5] : null;
+        if (m[4]) sep = m[4];
+        /* "5,17" is a verse only in the Tanakh. */
+        if (book && book.kind === 'mt' && sep === ',') continue;
       } else {
         // No \b for Hebrew: the book mustn't be the tail of a longer word.
-        if (start > 0 && /[א-ת]/.test(text[start - 1])) { HEAD.lastIndex = start + 1; continue; }
+        if (start > 0 && /[א-ת]/.test(text[start - 1])) { H.lastIndex = start + 1; continue; }
         lang = 'he';
-        book = byName[m[5]];
-        ch = heNum(m[6]);
-        v = m[7] !== undefined ? heNum(m[7]) : null;
+        book = byName[m[6]];
+        ch = heNum(m[7]);
+        v = m[8] !== undefined ? heNum(m[8]) : null;
       }
-      if (v === null && !closes(text, end)) continue;
+      if (v === null && !worded && !closes(text, end)) continue;
       const l = link(book, ch, v, lang);
       if (!l) continue;
-      out.push({ start: start, end: end, href: l.href, title: l.title });
+      out.push({ start: start, end: end, href: l.href, title: l.title, internal: book.kind === 'mt' });
       ctx.book = book;
 
       // The bare chapters and verses that follow.
       for (;;) {
+        if (worded) break;
         const rest = text.slice(end);
         let n, c2, v2;
         if (lang === 'en') {
@@ -166,15 +222,15 @@
         }
         const l2 = link(book, c2, v2, lang);
         if (!l2) break;
-        out.push({ start: end + n[1].length, end: end + n[0].length, href: l2.href, title: l2.title });
+        out.push({ start: end + n[1].length, end: end + n[0].length, href: l2.href, title: l2.title, internal: book.kind === 'mt' });
         end += n[0].length;
         ch = c2; v = v2;
       }
-      HEAD.lastIndex = end;
+      H.lastIndex = end;
     }
     return out;
   }
 
-  MT.refs = { find: find, href: href };
+  MT.refs = { find: find, href: href, sections: sections };
 
 })((typeof globalThis !== 'undefined' ? globalThis : window).MT);
